@@ -1,0 +1,182 @@
+diff --git a/hypervisor/cli.py b/hypervisor/cli.py
+old mode 100644
+new mode 100755
+index 5744abc..36e3742
+--- a/hypervisor/cli.py
++++ b/hypervisor/cli.py
+@@ -142,6 +142,17 @@ def main(argv=None) -> int:
+     workspace = Path(args.workspace or "engagement").resolve()
+     workspace.mkdir(parents=True, exist_ok=True)
+ 
++    # W1/W5 (a7): the boot event must record whether this boot RESUMES
++    # an existing journal (replay then skips window reconstruction —
++    # ENG-01: restored windows journaled msg_count=0 on every resumed
++    # boot) and the code identity that produced the renders (renderer
++    # drift across container rebuilds flipped 45 byte-verdicts with no
++    # journaled cause).
++    import platform
++    from . import __version__ as _aegis_version
++    _journal_file = workspace / ".aegis" / "journal" / "journal.jsonl"
++    _resumed = _journal_file.exists() and _journal_file.stat().st_size > 0
++
+     from .persist.journal import Journal
+     from .persist.sessions import SessionStore
+     journal = Journal(workspace / ".aegis" / "journal")
+@@ -160,6 +171,9 @@ def main(argv=None) -> int:
+         "rules": len(sf.rules),
+         "excludes": len(sf.excludes),
+         "workspace": str(workspace),
++        "resumed": _resumed,
++        "code_version": _aegis_version,
++        "python": platform.python_version(),
+         "render_params": {
+             "brief_token_budget": brief_total,
+             "brief_ceiling": brief_ceiling,
+diff --git a/hypervisor/debug/slo.py b/hypervisor/debug/slo.py
+old mode 100644
+new mode 100755
+index 9b9b9d7..efebdb7
+--- a/hypervisor/debug/slo.py
++++ b/hypervisor/debug/slo.py
+@@ -76,7 +76,13 @@ def slo_audit(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+     """Compute the performance profile + SLO verdicts from one
+     engagement journal's events (file order)."""
+     turns: Dict[int, List[float]] = {}      # turn -> [t_init, t_end...]
+-    turn_bounds: Dict[int, Tuple[float, float]] = {}
++    # W4 (a7): keyed (boot, turn) — turn numbers restart per boot; a
++    # bare turn number merges turns across boots and the inter-boot
++    # wall-clock gap surfaces as a phantom p95 (ENG-01: 7714s "turn"
++    # spanning the 2.18h restart gap while every real metric passed).
++    turn_bounds: Dict[Tuple[int, int], Tuple[float, float]] = {}
++    boot_idx = 0
++    boot_count = 0
+     model_calls: List[float] = []           # ms
+     model_errors = model_ok = 0
+     llm_abandons = llm_retries = llm_breakers = 0
+@@ -98,12 +104,18 @@ def slo_audit(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+         ts = float(e.get("ts") or 0.0)
+         turn = e.get("turn")
+ 
++        if t == "boot":
++            if boot_count:
++                boot_idx += 1
++            boot_count += 1
++
+         # per-turn wall-clock bounds come from EVERY turn-tagged event
+         # (a quiet turn may emit only one loop_transition — the bounds
+         # would collapse; llm/tool/hook events carry the turn too)
+         if turn is not None:
+-            lo, hi = turn_bounds.get(int(turn), (ts, ts))
+-            turn_bounds[int(turn)] = (min(lo, ts), max(hi, ts))
++            key = (boot_idx, int(turn))
++            lo, hi = turn_bounds.get(key, (ts, ts))
++            turn_bounds[key] = (min(lo, ts), max(hi, ts))
+ 
+         if t == "loop_transition":
+             name = str(d.get("name", d.get("to", "")))
+@@ -190,6 +202,7 @@ def slo_audit(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+ 
+     profile = {
+         "turns": len(turn_bounds),
++        "boots": boot_count,
+         "turn_latency_ms": {
+             "p50": _quantile(turn_latencies, 0.50),
+             "p95": _quantile(turn_latencies, 0.95),
+@@ -303,7 +316,9 @@ def _render(report: Dict[str, Any]) -> str:
+     t = p["tools"]
+     lines = [
+         "AEGIS SLO audit",
+-        f"  turns            : {p['turns']}",
++        f"  turns            : {p['turns']}"
++        + (f" across {p['boots']} boots"
++           if p.get("boots", 1) > 1 else ""),
+         f"  turn latency     : p50 {_fmt_ms(p['turn_latency_ms']['p50'])}"
+         f" / p95 {_fmt_ms(p['turn_latency_ms']['p95'])}"
+         f" / max {_fmt_ms(p['turn_latency_ms']['max'])}",
+diff --git a/hypervisor/persist/replay.py b/hypervisor/persist/replay.py
+old mode 100644
+new mode 100755
+index 05507f0..94e7617
+--- a/hypervisor/persist/replay.py
++++ b/hypervisor/persist/replay.py
+@@ -36,8 +36,11 @@ its sidecar artifacts, plus the 4.0 session-linkage pass.
+      verifies, and the parent transcript's chain is intact.
+ 
+ Degradation is EXPLICIT, never silent: pre-Phase-1 render events (no
+-brief_hash/now), resumed boots, unrecoverable sigs and pruned
+-snapshots count as skipped — the report is a recorder, not a gate.
++brief_hash/now), window checks on resumed boots (the restored window
++is not reconstructible from journaled message events — ENG-01: every
++resumed-boot window journaled msg_count=0; byte checks are RETAINED,
++40/42 verified), unrecoverable sigs and pruned snapshots count as
++skipped — the report is a recorder, not a gate.
+ 
+ Crash-boundary repair: journal-ahead-of-store (a journal rev with no
+ state rev — a crash between the J1 write-ahead and the state write)
+@@ -719,11 +722,15 @@ class JournalReplay:
+                 mut_actor = ""
+             elif t == "brief_render":
+                 rev = int(d.get("rev", 0) or 0)
+-                if resumed:
+-                    skipped += 1
+-                    if d.get("window_hash"):
+-                        win_skipped += 1
+-                    continue
++                if resumed and d.get("window_hash"):
++                    # W1 (a7): a resumed boot restores its window from
++                    # the session store, not from journaled message
++                    # events — the Zone W sim cannot reconstruct it
++                    # (ENG-01: every resumed-boot render journaled
++                    # window_msg_count=0). Skip the window check only;
++                    # byte verification is retained (boot 3 verified
++                    # 40/42 renders against committed snapshots).
++                    win_skipped += 1
+                 if rev > running_rev + 1:
+                     issues.append({
+                         "seq": e.get("seq"),
+@@ -731,7 +738,7 @@ class JournalReplay:
+                                  f"{running_rev} + 1 (render ahead of "
+                                  f"journal)"})
+                 # ── Zone W hash continuity (C3) ──
+-                if d.get("window_hash"):
++                if d.get("window_hash") and not resumed:
+                     win_checked += 1
+                     why = ""
+                     if not saw_message_stream:
+@@ -1051,8 +1058,11 @@ def main(argv: Optional[List[str]] = None) -> int:
+               + (f", {c['stop_hook_runs']} stop-hook runs "
+                  f"({c['stop_hook_blocks']} blocks)"
+                  if c.get("stop_hook_runs") else "") + ")")
+-        for i in c["issues"][:10]:
++        for i in c["issues"][:50]:
+             print(f"    ! seq {i.get('seq')}: {i.get('issue')}")
++        if len(c["issues"]) > 50:
++            print(f"    ... and {len(c['issues']) - 50} more "
++                  f"(run with --json for the full census)")
+         v = report["renders"]
+         w = v.get("window_checks") or {}
+         print(f"render replay    : {'OK' if v['ok'] else 'FAIL'}"
+@@ -1061,15 +1071,21 @@ def main(argv: Optional[List[str]] = None) -> int:
+         print(f"                   zone W windows: "
+               f"{w.get('verified', 0)}/{w.get('checked', 0)} "
+               f"hash-verified, {w.get('skipped', 0)} skipped)")
+-        for i in v["issues"][:10]:
++        for i in v["issues"][:50]:
+             print(f"    ! seq {i.get('seq')}: {i.get('issue')}")
++        if len(v["issues"]) > 50:
++            print(f"    ... and {len(v['issues']) - 50} more "
++                  f"(run with --json for the full census)")
+         s = report["session_linkage"]
+         if s.get("store_present"):
+             print(f"session linkage  : {'OK' if s['ok'] else 'FAIL'}"
+                   f" ({s['sidechains_checked']} sidechains,"
+                   f" {s['sidechains_linked']} linked)")
+-            for i in s["issues"][:10]:
++            for i in s["issues"][:50]:
+                 print(f"    ! {i.get('issue')}")
++            if len(s["issues"]) > 50:
++                print(f"    ... and {len(s['issues']) - 50} more "
++                      f"(run with --json for the full census)")
+         b = report["crash_boundary"]
+         print(f"crash boundary   : {'OK' if b['ok'] else 'REPAIRABLE'}"
+               + (f" (journal rev {b['journal_rev']} > store rev "

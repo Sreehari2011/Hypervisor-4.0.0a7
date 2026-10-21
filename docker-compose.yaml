@@ -1,0 +1,56 @@
+# =============================================================================
+# AEGIS Hypervisor 4.0 — engagement container
+# Requires .env next to this file:  cp .env.example .env
+# Run:  docker compose build && docker compose run --rm aegis
+# =============================================================================
+services:
+  aegis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aegis-hypervisor:4.0.0a6
+    container_name: aegis_agent
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW       # nmap/masscan raw sockets
+      - NET_ADMIN     # interface/arp manipulation
+      # Kali binaries ship file caps (nmap: cap_net_bind_service,
+      # cap_net_admin, cap_net_raw); execve refuses with EPERM — for
+      # every user, root included — when a file capability sits outside
+      # the bounding set that cap_drop:ALL + this list builds. Keep the
+      # set covering every file-capped runtime (kit Dockerfile step 1b
+      # also normalizes nmap to NET_ADMIN+NET_RAW as belt-and-braces).
+      - NET_BIND_SERVICE
+      # - SYS_PTRACE  # uncomment ONLY for local-process frida instrumentation
+    networks:
+      - aegis_mesh
+    mem_limit: 8g
+    cpus: 4
+    read_only: false          # journal + engagement writes live under /app
+    tmpfs:
+      - /tmp:size=1g
+    volumes:
+      - ./workspace:/app/workspace              # engagement workspaces (journals under here)
+      - ./logs:/app/logs
+      - ./templates:/app/templates
+      - ./playbooks:/app/workspace/playbooks
+      - ./history:/app/history
+      - ./exit-criterion:/app/.exit-criterion  # persists --keep evidence to the host
+      - /etc/proxychains4.conf:/etc/proxychains4.conf:ro  # optional: runtime proxy creds
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+    restart: "no"
+    # security_opt:
+    #   - no-new-privileges:true   # WARNING: no_new_privs blocks
+    #                              # file-cap acquisition at exec — the
+    #                              # file-capped runtimes (nmap) stop
+    #                              # working. Do not enable alongside
+    #                              # the cap_add file-cap design.
+
+networks:
+  aegis_mesh:
+    driver: bridge
+    internal: false   # must reach the model gateway (10.31.5.112:4000) directly

@@ -1,0 +1,29 @@
+{
+  "engagement": "PILOT-01",
+  "scope_fingerprint": "sha256:d827a996ee201aca@v1",
+  "target": "10.10.0.5",
+  "ports_authorized": [22, 80, 443],
+  "summary": "No port on the authorized target returned any response. All TCP SYN probes to 22/80/443 timed out (8s, host silent). ICMP echo 100% loss. No route to the 10.10.0.0 supernet from workspace pod (172.20.0.3, gw 172.20.0.1 on 172.20.0.0). Target deemed unreachable/filtered; no service, version, or patch data obtainable.",
+  "port_results": {
+    "22":  {"state": "filtered", "evidence": "SYN timeout rc=124 ~8000ms; nmap unavailable (no CAP_NET_RAW)"},
+    "80":  {"state": "filtered", "evidence": "SYN timeout rc=124 ~8000ms; curl exit 28 http_code=000"},
+    "443": {"state": "filtered", "evidence": "SYN timeout rc=124 ~8000ms; curl -k exit 28 http_code=000"}
+  },
+  "reachability": {
+    "icmp": "100% packet loss (2/2)",
+    "local_ip": "172.20.0.3",
+    "default_gateway": "172.20.0.1",
+    "local_subnet": "172.20.0.0 (prefix /16)",
+    "target_route_present": false
+  },
+  "banner_grab": null,
+  "versions_identified": [],
+  "cves_mapped": [],
+  "pocs_run": [],
+  "blocking_condition": "target host unreachable (no route / filtered); enumeration could not proceed",
+  "evidence_files": [
+    "evidence/tcp_state_test.txt",
+    "evidence/enum_summary.json",
+    "probe.py"
+  ]
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "buffer_id": "05720b54",
+    "tool": "read_file",
+    "label": ".aegis/sessions/20261012-102832-8d187255.jsonl",
+    "timestamp": "2026-10-12T10:37:57",
+    "chars": 21453
+  },
+  {
+    "buffer_id": "63880b77",
+    "tool": "read_file",
+    "label": "workspace/buffers/agent_buffer_05720b54.log",
+    "timestamp": "2026-10-12T10:39:04",
+    "chars": 21579
+  }
+]

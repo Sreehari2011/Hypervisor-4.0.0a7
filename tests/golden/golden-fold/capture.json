@@ -1,0 +1,7 @@
+{
+  "name": "golden-fold",
+  "rc": 0,
+  "window": "6000",
+  "endpoint_calls": 4,
+  "compact_calls": 5
+}

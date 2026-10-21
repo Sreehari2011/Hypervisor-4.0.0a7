@@ -1,0 +1,9 @@
+www.innspark.in -> sites.framer.app.
+31.43.160.6
+31.43.161.6
+mail.innspark.in -> 103.10.24.98
+ns1.innspark.in -> 103.10.24.69
+ns2.innspark.in -> 103.10.24.41
+cloud.innspark.in -> 103.10.24.44
+support.innspark.in -> 103.10.24.118
+helpdesk.innspark.in -> 103.10.24.42

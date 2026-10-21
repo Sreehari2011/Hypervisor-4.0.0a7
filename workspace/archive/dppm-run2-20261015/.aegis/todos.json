@@ -1,0 +1,40 @@
+{
+  "todos": [
+    {
+      "content": "Passive enumeration: DNS resolution via default resolver",
+      "id": "1",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Passive enumeration: HTTP/HTTPS response analysis (headers, TLS, banners)",
+      "id": "2",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "TCP service enumeration: proxychains4 nmap -sT --max-rate 64 -T2",
+      "id": "3",
+      "priority": "high",
+      "status": "in_progress"
+    },
+    {
+      "content": "Version/patch identification & CVE correlation from banners/responses",
+      "id": "4",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "content": "Non-destructive PoC verification (max 1 per confirmed exposure class)",
+      "id": "5",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "content": "Structured findings summary with scope fingerprint & evidence paths",
+      "id": "6",
+      "priority": "high",
+      "status": "pending"
+    }
+  ]
+}

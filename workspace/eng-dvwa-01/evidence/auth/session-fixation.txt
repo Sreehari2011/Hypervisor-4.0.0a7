@@ -1,0 +1,4 @@
+seed=aegisfixedseed00000000000000001
+after_get=6a6963e98568ae277ce8ac75494a671b
+after_login=6c0ca63a7f83af3632c384911ff354b1
+verdict=ROTATED (fixation NOT exploitable)

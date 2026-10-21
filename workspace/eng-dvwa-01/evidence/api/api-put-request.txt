@@ -1,0 +1,5 @@
+PUT /vulnerabilities/api/v2/user/1 HTTP/1.1
+Host: 10.31.0.87:3000
+Content-Type: application/json
+
+{"name":"AEGIS_PUT2"}

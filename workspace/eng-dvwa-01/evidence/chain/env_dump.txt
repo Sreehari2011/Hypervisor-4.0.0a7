@@ -1,0 +1,55 @@
+== DB password from env
+
+== full env
+APACHE_CONFDIR=/etc/apache2
+HOSTNAME=95fdb85a5950
+PHP_INI_DIR=/usr/local/etc/php
+SHLVL=0
+PHP_LDFLAGS=-Wl,-O1 -pie
+APACHE_RUN_DIR=/var/run/apache2
+PHP_CFLAGS=-fstack-protector-strong -fpic -fpie -O2 -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
+PHP_VERSION=8.5.9
+APACHE_PID_FILE=/var/run/apache2/apache2.pid
+GPG_KEYS=1198C0117593497A5EC5C199286AF1F9897469DC 49D9AF6BC72A80D6691719C8AA23F5BE9C7097D4 D95C03BC702BE9515344AE3374E44BC9067701A5
+PHP_ASC_URL=https://www.php.net/distributions/php-8.5.9.tar.xz.asc
+PHP_CPPFLAGS=-fstack-protector-strong -fpic -fpie -O2 -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64
+PHP_URL=https://www.php.net/distributions/php-8.5.9.tar.xz
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+APACHE_LOCK_DIR=/var/lock/apache2
+LANG=C
+APACHE_RUN_GROUP=www-data
+APACHE_RUN_USER=www-data
+APACHE_LOG_DIR=/var/log/apache2
+PWD=/var/www/html/vulnerabilities/exec
+PHPIZE_DEPS=autoconf 		dpkg-dev 		file 		g++ 		gcc 		libc-dev 		make 		pkg-config 		re2c
+DB_SERVER=db
+PHP_SHA256=0db7855f25bcd0ab1d592cdb35e284d6f6a5d2ae0f6f621122e364cc39b708f4
+APACHE_ENVVARS=/etc/apache2/envvars
+
+
+== git branch of dvwa
+
+== apache config sites-enabled
+
+== the db inc itself if directly readable
+../../config/config.inc.php:#   WARNING: The database specified under db_database WILL BE ENTIRELY DELETED during setup.
+../../config/config.inc.php:#   See README.md for more information on this.
+../../config/config.inc.php:$_DVWA[ 'db_server' ]   = getenv('DB_SERVER') ?: '127.0.0.1';
+../../config/config.inc.php:$_DVWA[ 'db_database' ] = getenv('DB_DATABASE') ?: 'dvwa';
+../../config/config.inc.php:$_DVWA[ 'db_user' ]     = getenv('DB_USER') ?: 'dvwa';
+../../config/config.inc.php:$_DVWA[ 'recaptcha_public_key' ]  = getenv('RECAPTCHA_PUBLIC_KEY') ?: '';
+../../config/config.inc.php:$_DVWA[ 'recaptcha_private_key' ] = getenv('RECAPTCHA_PRIVATE_KEY') ?: '';
+../../config/config.inc.php:$_DVWA[ 'default_security_level' ] = getenv('DEFAULT_SECURITY_LEVEL') ?: 'impossible';
+../../config/config.inc.php:$_DVWA[ 'default_locale' ] = getenv('DEFAULT_LOCALE') ?: 'en';
+../../config/config.inc.php:$_DVWA[ 'disable_authentication' ] = getenv('DISABLE_AUTHENTICATION') ?: false;
+../../config/config.inc.php:define ('SQLITE', 'sqlite');
+../../config/config.inc.php:#$_DVWA['SQLI_DB'] = SQLITE;
+../../config/config.inc.php:#$_DVWA['SQLITE_DB'] = 'sqli.db';
+
+== php ini expose_php etc
+; This file attempts to overwrite the original php.ini file. Doesnt always work.
+
+magic_quotes_gpc = Off
+allow_url_fopen = on
+allow_url_include = on
+

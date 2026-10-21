@@ -1,0 +1,46 @@
+{
+  "todos": [
+    {
+      "content": "Setup: mkdir -p evidence dirs; verify proxychains4 + nmap availability",
+      "id": "1",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Task 1: proxychains4 nmap -sT --top-ports 100 --max-rate 64 -T2",
+      "id": "2",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Task 1b: bounded extended-subset scan; no additional open ports",
+      "id": "3",
+      "priority": "medium",
+      "status": "completed"
+    },
+    {
+      "content": "Task 2: proxychains4 nmap -sV only on open ports (22/53/80/443/5060/8080)",
+      "id": "4",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Task 3: version/patch-level CVE correlation (banners + scoped responses)",
+      "id": "5",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Task 4: one non-destructive PoC - React Flight deserialization; result: NOT exploitable (404 x-nextjs-action-not-found)",
+      "id": "6",
+      "priority": "medium",
+      "status": "completed"
+    },
+    {
+      "content": "Report: EKD surface inventory + engagement findings file written",
+      "id": "7",
+      "priority": "high",
+      "status": "completed"
+    }
+  ]
+}

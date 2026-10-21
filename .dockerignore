@@ -1,0 +1,14 @@
+# Keep the build context lean — nothing below belongs inside the image.
+.exit-criterion/
+workspace/
+logs/
+history/
+templates/
+playbooks/
+.env
+.env.*
+.git/
+.gitignore
+**/__pycache__/
+*.pyc
+.pytest-tmp

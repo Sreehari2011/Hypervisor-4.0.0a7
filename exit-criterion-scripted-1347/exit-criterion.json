@@ -1,0 +1,219 @@
+{
+  "criterion": "every run: rc==0 AND replay OVERALL OK AND SLO OVERALL PASS (no-data allowed)",
+  "mode": "scripted",
+  "passed": 10,
+  "runs": 10,
+  "runs_detail": [
+    {
+      "elapsed_s": 0.6,
+      "endpoint_calls": 2,
+      "journal_events": 25,
+      "name": "quiet-probe",
+      "rc": 0,
+      "replay_detail": "mutations=2 folds=0 renders=2/2 issues=0+0+0 sessions=True boundary=True",
+      "replay_ok": true,
+      "slo_failures": [],
+      "slo_overall": "pass",
+      "slo_profile": {
+        "folds": 0,
+        "tokens": {
+          "completion": 64,
+          "prompt": 370
+        },
+        "tool_calls": 1,
+        "turns": 3,
+        "watchdog": 0
+      }
+    },
+    {
+      "elapsed_s": 0.5,
+      "endpoint_calls": 3,
+      "journal_events": 44,
+      "name": "fold-pressure",
+      "rc": 0,
+      "replay_detail": "mutations=3 folds=1 renders=3/3 issues=0+0+0 sessions=True boundary=True",
+      "replay_ok": true,
+      "slo_failures": [],
+      "slo_overall": "pass",
+      "slo_profile": {
+        "folds": 1,
+        "tokens": {
+          "completion": 88,
+          "prompt": 520
+        },
+        "tool_calls": 2,
+        "turns": 4,
+        "watchdog": 0
+      }
+    },
+    {
+      "elapsed_s": 30.5,
+      "endpoint_calls": 3,
+      "journal_events": 36,
+      "name": "vapt-recon",
+      "rc": 0,
+      "replay_detail": "mutations=2 folds=0 renders=3/3 issues=0+0+0 sessions=True boundary=True",
+      "replay_ok": true,
+      "slo_failures": [],
+      "slo_overall": "pass",
+      "slo_profile": {
+        "folds": 0,
+        "tokens": {
+          "completion": 88,
+          "prompt": 520
+        },
+        "tool_calls": 2,
+        "turns": 4,
+        "watchdog": 0
+      }
+    },
+    {
+      "elapsed_s": 0.4,
+      "endpoint_calls": 2,
+      "journal_events": 24,
+      "name": "operator-frida",
+      "rc": 0,
+      "replay_detail": "mutations=1 folds=0 renders=2/2 issues=0+0+0 sessions=True boundary=True",
+      "replay_ok": true,
+      "slo_failures": [],
+      "slo_overall": "pass",
+      "slo_profile": {
+        "folds": 0,
+        "tokens": {
+          "completion": 64,
+          "prompt": 370
+        },
+        "tool_calls": 1,
+        "turns": 3,
+        "watchdog": 0
+      }
+    },
+    {
+      "elapsed_s": 4.6,
+      "endpoint_calls": 2,
+      "journal_events": 25,
+      "name": "operator-mitm",
+      "rc": 0,
+      "replay_detail": "mutations=2 folds=0 renders=2/2 issues=0+0+0 sessions=True boundary=True",
+      "replay_ok": true,
+      "slo_failures": [],
+      "slo_overall": "pass",
+      "slo_profile": {
+        "folds": 0,
+        "tokens": {
+          "completion": 64,
+          "prompt": 370
+        },
+        "tool_calls": 1,
+        "turns": 3,
+        "watchdog": 0
+      }
+    },
+    {
+      "elapsed_s": 0.5,
+      "endpoint_calls": 3,
+      "journal_events": 37,
+      "name": "stop-hook",
+      "rc": 0,
+      "replay_detail": "mutations=2 folds=0 renders=3/3 issues=0+0+0 sessions=True boundary=True",
+      "replay_ok": true,
+      "slo_failures": [],
+      "slo_overall": "pass",
+      "slo_profile": {
+        "folds": 0,
+        "tokens": {
+          "completion": 104,
+          "prompt": 590
+        },
+        "tool_calls": 1,
+        "turns": 4,
+        "watchdog": 0
+      }
+    },
+    {
+      "elapsed_s": 0.3,
+      "endpoint_calls": 2,
+      "journal_events": 25,
+      "name": "exec-harness",
+      "rc": 0,
+      "replay_detail": "mutations=2 folds=0 renders=2/2 issues=0+0+0 sessions=True boundary=True",
+      "replay_ok": true,
+      "slo_failures": [],
+      "slo_overall": "pass",
+      "slo_profile": {
+        "folds": 0,
+        "tokens": {
+          "completion": 64,
+          "prompt": 370
+        },
+        "tool_calls": 1,
+        "turns": 3,
+        "watchdog": 0
+      }
+    },
+    {
+      "elapsed_s": 0.4,
+      "endpoint_calls": 3,
+      "journal_events": 37,
+      "name": "subagent",
+      "rc": 0,
+      "replay_detail": "mutations=2 folds=0 renders=2/2 issues=0+0+0 sessions=True boundary=True",
+      "replay_ok": true,
+      "slo_failures": [],
+      "slo_overall": "pass",
+      "slo_profile": {
+        "folds": 0,
+        "tokens": {
+          "completion": 64,
+          "prompt": 370
+        },
+        "tool_calls": 1,
+        "turns": 3,
+        "watchdog": 0
+      }
+    },
+    {
+      "elapsed_s": 0.4,
+      "endpoint_calls": 4,
+      "journal_events": 49,
+      "name": "mixed-a",
+      "rc": 0,
+      "replay_detail": "mutations=4 folds=0 renders=4/4 issues=0+0+0 sessions=True boundary=True",
+      "replay_ok": true,
+      "slo_failures": [],
+      "slo_overall": "pass",
+      "slo_profile": {
+        "folds": 0,
+        "tokens": {
+          "completion": 112,
+          "prompt": 670
+        },
+        "tool_calls": 3,
+        "turns": 5,
+        "watchdog": 0
+      }
+    },
+    {
+      "elapsed_s": 0.5,
+      "endpoint_calls": 4,
+      "journal_events": 49,
+      "name": "mixed-b",
+      "rc": 0,
+      "replay_detail": "mutations=4 folds=0 renders=4/4 issues=0+0+0 sessions=True boundary=True",
+      "replay_ok": true,
+      "slo_failures": [],
+      "slo_overall": "pass",
+      "slo_profile": {
+        "folds": 0,
+        "tokens": {
+          "completion": 112,
+          "prompt": 670
+        },
+        "tool_calls": 3,
+        "turns": 5,
+        "watchdog": 0
+      }
+    }
+  ],
+  "verdict": "PASS"
+}

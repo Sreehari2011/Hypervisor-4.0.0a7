@@ -1,0 +1,16 @@
+# Nmap 7.991 scan initiated Thu Oct 15 05:06:05 2026 as: /usr/lib/nmap/nmap --privileged -sT --max-rate 64 -T2 -Pn -sV -p 22,53,80,443,5060,8080 -oN evidence/nmap_versions.txt dppmsserchhip.mizoram.gov.in
+Nmap scan report for dppmsserchhip.mizoram.gov.in (13.200.99.3)
+Host is up (0.33s latency).
+rDNS record for 13.200.99.3: ec2-13-200-99-3.ap-south-1.compute.amazonaws.com
+
+PORT     STATE SERVICE     VERSION
+22/tcp   open  ssh         OpenSSH 9.6p1 Ubuntu 3ubuntu13.19 (Ubuntu Linux; protocol 2.0)
+53/tcp   open  domain      Unbound
+80/tcp   open  http        nginx 1.28.3
+443/tcp  open  ssl/http    nginx
+5060/tcp open  sip?
+8080/tcp open  http-proxy?
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+# Nmap done at Thu Oct 15 05:13:05 2026 -- 1 IP address (1 host up) scanned in 420.12 seconds

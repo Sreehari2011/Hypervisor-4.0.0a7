@@ -1,0 +1,14 @@
+# Nmap 7.991 scan initiated Thu Oct 15 05:26:33 2026 as: /usr/lib/nmap/nmap --privileged -sT --top-ports 100 --max-rate 64 -T2 -oN evidence/nmap_top100.txt dppmsserchhip.mizoram.gov.in
+Nmap scan report for dppmsserchhip.mizoram.gov.in (13.200.99.3)
+Host is up (0.24s latency).
+rDNS record for 13.200.99.3: ec2-13-200-99-3.ap-south-1.compute.amazonaws.com
+Not shown: 94 filtered tcp ports (no-response)
+PORT     STATE SERVICE
+22/tcp   open  ssh
+53/tcp   open  domain
+80/tcp   open  http
+443/tcp  open  https
+5060/tcp open  sip
+8080/tcp open  http-proxy
+
+# Nmap done at Thu Oct 15 05:28:16 2026 -- 1 IP address (1 host up) scanned in 102.26 seconds

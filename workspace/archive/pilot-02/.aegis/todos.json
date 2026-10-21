@@ -1,0 +1,40 @@
+{
+  "todos": [
+    {
+      "content": "Review existing EKD state and workspace artifacts from prior loops",
+      "id": "t1",
+      "priority": "high",
+      "status": "in_progress"
+    },
+    {
+      "content": "Phase 1: passive subdomain enumeration (crt.sh, DNS, OSINT) \u2014 no target contact",
+      "id": "t2",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "content": "Phase 1: ownership classification of discovered assets (ASN/whois/CDN)",
+      "id": "t3",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "content": "Phase 2: rate-capped port/service mapping of in-scope hosts",
+      "id": "t4",
+      "priority": "high",
+      "status": "pending"
+    },
+    {
+      "content": "Phase 2: endpoint inventory of www.innspark.in (sitemap, robots, crawl)",
+      "id": "t5",
+      "priority": "medium",
+      "status": "pending"
+    },
+    {
+      "content": "Write consolidated Phase 1-2 artifacts to workspace; hard stop before Phase 3",
+      "id": "t6",
+      "priority": "high",
+      "status": "pending"
+    }
+  ]
+}

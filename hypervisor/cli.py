@@ -1,0 +1,400 @@
+"""hypervisor.cli — thin entry chain (P1).
+
+REFACTOR-06 (3.7.3 main.py, 1,368 lines of REPL + grid plumbing)
+reduced to the load-bearing chain: arg/env bootstrap, debug-kit install
+FIRST (observability before behavior), journal boot event, scope-file
+load with the deny-by-default banner, registry freeze, session store,
+then THE loop with a line renderer. The interactive REPL with slash
+commands (/scope /compact /reset /health /report /resume) is later
+polish on this same chain; P1 ships the headless one-shot runner the
+SDK-style engine and subagents will share.
+"""
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import sys
+from pathlib import Path
+
+EXIT_OK = 0
+EXIT_COMPLETED = 0
+EXIT_PROMPT_TOO_LONG = 2
+EXIT_WATCHDOG = 3
+EXIT_MODEL_ERROR = 4
+EXIT_SCOPE_ERROR = 5
+
+SYSTEM_PROMPT = (
+    "You are AEGIS, the autonomous VAPT agent of a scoped engagement. "
+    "You operate inside a signed scope: in-scope targets are authorized "
+    "and audited; anything else is refused by the platform, not by you. "
+    "Work the objective with the tools available, keep evidence in the "
+    "workspace, track your plan with todo_write, and when the objective "
+    "is met produce a concise findings summary as your final message.")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog="hypervisor",
+        description="AEGIS Hypervisor 4.0 — single-loop VAPT agent "
+                    "(clean-room rebuild, Claude-Code-shaped control "
+                    "plane).")
+    ap.add_argument("--scope", metavar="FILE",
+                    help="operator-signed engagement scope file (JSON)")
+    ap.add_argument("--objective", metavar="TEXT",
+                    help="engagement objective ('-' reads stdin)")
+    ap.add_argument("--workspace", metavar="DIR",
+                    help="engagement workspace (default: ./engagement)")
+    ap.add_argument("--max-turns", type=int, default=None,
+                    help="turn ceiling (default: none for the main loop)")
+    ap.add_argument("--base-url", default=None,
+                    help="OpenAI-compatible endpoint "
+                         "(env AEGIS_OPENAI_BASE_URL)")
+    ap.add_argument("--model", default=None,
+                    help="model name (env AEGIS_MODEL)")
+    ap.add_argument("--api-key", default=None,
+                    help="API key (env AEGIS_OPENAI_API_KEY)")
+    ap.add_argument("--no-debug", action="store_true",
+                    help="skip the debug kit install (not recommended)")
+    ap.add_argument("--check-scope", metavar="FILE",
+                    help="validate a scope file and exit (operator "
+                         "pre-flight; prints fingerprint + status)")
+    ap.add_argument("--stop-hook", metavar="CMD",
+                    help="operator stop-hook command (consulted before "
+                         "the loop accepts a natural stop; stdin JSON in "
+                         "CC's Stop shape, exit 2 or {\"decision\": "
+                         "\"block\"} to continue; env AEGIS_STOP_HOOK)")
+    ap.add_argument("--doctor", action="store_true",
+                    help="pre-flight the host: endpoint reachability, "
+                         "scope sanity, registry composition, operator "
+                         "runtime attachments; exit 0 = ready")
+    ap.add_argument("--version", action="store_true",
+                    help="print version and exit")
+    return ap
+
+
+def _env_i(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, "") or default)
+    except (TypeError, ValueError):
+        return default
+
+
+def _check_scope(path: str) -> int:
+    from .permissions import ScopeFile, ScopeManager
+    try:
+        sf = ScopeFile.load(path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"SCOPE FILE INVALID: {exc}", file=sys.stderr)
+        return EXIT_SCOPE_ERROR
+    sm = ScopeManager(sf)
+    print(json.dumps(sm.scope_status(), indent=2))
+    print(f"scope_ref: {sf.scope_ref()}")
+    print(f"targets: {len(sf.rules)} rules, {len(sf.excludes)} excludes, "
+          f"mode={sf.mode}, roe.poc_only={sf.roe.poc_only}")
+    return EXIT_OK
+
+
+def main(argv=None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    ap = build_parser()
+    args = ap.parse_args(argv)
+
+    if args.version:
+        from . import __version__
+        print(f"hypervisor {__version__}")
+        return EXIT_OK
+
+    if args.check_scope:
+        return _check_scope(args.check_scope)
+
+    if args.doctor:
+        from .doctor import run_doctor
+        return run_doctor()
+
+    # UX-01: bare `hypervisor` on a fully interactive terminal drops
+    # into the operator TUI (Codex/Claude-Code style chat + slash
+    # commands over this same entry chain). Every flag path above and
+    # below is untouched; a failed TUI import falls through to the
+    # headless usage error, never crashes the CLI.
+    if not argv and sys.stdin.isatty() and sys.stdout.isatty():
+        try:
+            from .tui import run_tui
+        except Exception:
+            pass
+        else:
+            return run_tui()
+
+    if not args.scope or not args.objective:
+        ap.print_usage()
+        print("engagement mode requires --scope FILE and --objective TEXT",
+              file=sys.stderr)
+        return EXIT_SCOPE_ERROR
+
+    # ── 1. observability before behavior ────────────────────────────
+    if not args.no_debug:
+        try:
+            from .debug import install as install_kit
+            install_kit()
+        except Exception:
+            pass
+
+    # ── 2. scope: the single authorization truth ────────────────────
+    from .permissions import (PermissionEngine, ScopeFile, ScopeManager)
+    try:
+        sf = ScopeFile.load(args.scope)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"SCOPE FILE INVALID: {exc}", file=sys.stderr)
+        return EXIT_SCOPE_ERROR
+    if not sf.signed:
+        print("WARNING: scope file is UNSIGNED — running with an "
+              "integrity-fingerprinted but unverified authorization "
+              "artifact.", file=sys.stderr)
+
+    workspace = Path(args.workspace or "engagement").resolve()
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    # W1/W5 (a7): the boot event must record whether this boot RESUMES
+    # an existing journal (replay then skips window reconstruction —
+    # ENG-01: restored windows journaled msg_count=0 on every resumed
+    # boot) and the code identity that produced the renders (renderer
+    # drift across container rebuilds flipped 45 byte-verdicts with no
+    # journaled cause).
+    import platform
+    from . import __version__ as _aegis_version
+    _journal_file = workspace / ".aegis" / "journal" / "journal.jsonl"
+    _resumed = _journal_file.exists() and _journal_file.stat().st_size > 0
+
+    from .persist.journal import Journal
+    from .persist.sessions import SessionStore
+    journal = Journal(workspace / ".aegis" / "journal")
+    scope_mgr = ScopeManager(sf, journal=journal)
+
+    # the brief render params (PORT-06: replay's re-render contract
+    # reads them from the boot event — J2 byte-identity needs the
+    # exact budgets/topn/scope mode production used)
+    brief_total = _env_i("AEGIS_BRIEF_TOTAL", 700)
+    brief_ceiling = max(brief_total, _env_i("AEGIS_BRIEF_CEILING", 800))
+    brief_topn = _env_i("AEGIS_BRIEF_TOPN", 12)
+    journal.append("boot", {
+        "engagement_id": sf.engagement_id,
+        "scope_ref": sf.scope_ref(),
+        "mode": sf.mode,
+        "rules": len(sf.rules),
+        "excludes": len(sf.excludes),
+        "workspace": str(workspace),
+        "resumed": _resumed,
+        "code_version": _aegis_version,
+        "python": platform.python_version(),
+        "render_params": {
+            "brief_token_budget": brief_total,
+            "brief_ceiling": brief_ceiling,
+            "render_topn_entities": brief_topn,
+            "scope_mode": sf.mode,
+        },
+    }, actor="cli")
+    print(f"[scope] {sf.scope_ref()} | mode={sf.mode} | "
+          f"{len(sf.rules)} rules | {len(sf.excludes)} excludes",
+          file=sys.stderr)
+
+    # ── 3. tool plane + permission gate ─────────────────────────────
+    from .tools.core import build_registry
+    from .tools.base import ToolContext
+    registry = build_registry(include_vapt=True, include_task=True)
+    registry.freeze()               # byte-stable from boot
+    engine = PermissionEngine(scope_mgr, journal=journal)
+
+    session = SessionStore(workspace / ".aegis" / "sessions")
+    ctx = ToolContext(workspace=str(workspace), registry=registry,
+                      permissions=engine, journal=journal,
+                      extra={"session": session})
+
+    # ── 4. memory plane (P2): EKD + recovery + brief renderer ──────
+    from .memory import ekd as ekd_mod
+    from .memory.brief import BriefRenderer
+    from .memory.extractors import ensure_objective
+    ekd_state = ekd_mod.state_path_for(str(workspace))
+    ekd, repaired = ekd_mod.recover(journal, str(workspace))
+    if repaired:
+        print("[ekd] crash recovery applied (journal ahead of state)",
+              file=sys.stderr)
+
+    objective = args.objective
+    if objective == "-":
+        objective = sys.stdin.read()
+
+    # the root node: the verbatim operator prompt (idempotent,
+    # dedup-safe — same canonical key the extractors use)
+    with ekd_mod.EkdBatch(ekd, ctx, extractor="tier_a",
+                          reason="objective_commit"):
+        objective_id = ensure_objective(ekd, objective)
+    if journal is not None:
+        try:
+            journal.record_objective(objective)
+        except Exception:
+            pass
+
+    renderer = BriefRenderer(
+        journal=journal,
+        token_budget=brief_total,
+        hard_ceiling=brief_ceiling,
+        topn_entities=brief_topn)
+
+    # the context rides the tool context: EKD (post-hook + brief),
+    # renderer (Zone T), extractor failure counters, expansions store,
+    # and the PORT-10 drift guard
+    from .context.fingerprint import FingerprintMonitor
+    ctx.extra["ekd"] = ekd
+    ctx.extra["ekd_state_path"] = ekd_state
+    ctx.extra["renderer"] = renderer
+    ctx.extra["objective_id"] = objective_id
+    ctx.extra["extractor_failures"] = ekd_mod.new_extractor_failures()
+    ctx.extra["tail_attachments"] = {}
+    ctx.extra["episodic_residual"] = ""
+    ctx.extra["fingerprint_monitor"] = FingerprintMonitor(journal)
+
+    # ── 5. model plane (guard rides inside production deps) ────────
+    from .adapters.openai import OpenAICompatClient
+    from .context.budget import BudgetManager, resolve_context_window
+    from .context.compact import CompactEngine, make_summarizer
+    from .guard import LLMGuard
+    from .query import QueryParams, production_deps, query_loop
+    overrides = {}
+    if args.base_url:
+        overrides["base_url"] = args.base_url
+    if args.model:
+        overrides["model"] = args.model
+    if args.api_key:
+        overrides["api_key"] = args.api_key
+    adapter = OpenAICompatClient.from_env(**overrides)
+
+    # the window authority (REFACTOR-01): env pin > registry > 32k
+    window = resolve_context_window(adapter.model)
+    budget = BudgetManager(window)
+    print(f"[context] {budget.describe()}", file=sys.stderr)
+    ctx.extra["model"] = str(adapter.model)
+    ctx.extra["tool_names"] = [t.name for t in registry]
+
+    # P3: the agent runtime (Task-tool spawns) + the L3 side query —
+    # one guard instance owns every model call site; the summarizer
+    # routes through it exactly like the fold's. The guard carries the
+    # engagement journal so every defense line (llm_call/llm_call_end/
+    # retry/abandon/breaker) is audited — the SLO model plane reads
+    # exactly these events
+    guard = LLMGuard(journal=journal)
+    summarizer = make_summarizer(adapter, guard)
+    ctx.extra["agent_runtime"] = {
+        "adapter": adapter, "guard": guard, "budget": budget,
+        "summarizer": summarizer}
+    ctx.extra["side_query_surfaced"] = {}
+    sidequery = None
+    if os.environ.get("AEGIS_SIDEQUERY", "1").strip().lower() \
+            in ("1", "true", "yes", "on"):
+        from .memory.sidequery import SideQueryEngine
+        sidequery = SideQueryEngine(adapter, guard, journal=journal)
+        print("[l3] side-query selector armed (revision-bump gated)",
+              file=sys.stderr)
+
+    # P4: the stop-hook seam (operator configuration, never
+    # model-reachable). --stop-hook > AEGIS_STOP_HOOK; the SubagentStop
+    # companion rides ctx.extra for the agent runtime.
+    from .hooks import StopHookConfig, stop_hook_from_env
+    stop_hook_cfg = stop_hook_from_env()
+    if getattr(args, "stop_hook", None):
+        stop_hook_cfg.command = args.stop_hook.strip()
+    if stop_hook_cfg.active():
+        ctx.extra["subagent_stop_hook"] = stop_hook_cfg
+        print(f"[hooks] stop-hook armed: {stop_hook_cfg.command or '(callable)'}",
+              file=sys.stderr)
+
+    params = QueryParams(
+        system_prompt=SYSTEM_PROMPT,
+        tools=list(registry),
+        initial_messages=[
+            {"role": "user", "content": objective},
+        ],
+        ctx=ctx, max_turns=args.max_turns, purpose="main",
+        stop_hook=stop_hook_cfg)
+
+    rc = run_engagement(params, adapter, budget=budget,
+                        sidequery=sidequery, guard=guard)
+    # persist the engagement graph on clean exit (the journal's
+    # snapshots remain the crash surface either way)
+    try:
+        ekd_mod.save_state(ekd, str(workspace))
+    except Exception:
+        pass
+    try:
+        asyncio.run(adapter.aclose())
+    except Exception:
+        pass
+    return rc
+
+
+def run_engagement(params, adapter, *, budget=None, engine=None,
+                   sidequery=None, guard=None) -> int:
+    from .context.budget import BudgetManager, resolve_context_window
+    from .context.compact import CompactEngine, make_summarizer
+    from .guard import LLMGuard
+    from .query import LoopEvent, production_deps, query_loop
+    if budget is None:
+        budget = BudgetManager(resolve_context_window(
+            getattr(adapter, "model", "")))
+    # ONE guard instance owns every model call site (main loop, folds,
+    # subagents, side queries) — the caller passes the journal-wired
+    # one so every defense line is audited
+    if guard is None:
+        guard = LLMGuard()
+    if engine is None:
+        engine = CompactEngine(
+            budget, summarizer=make_summarizer(adapter, guard))
+    deps = production_deps(adapter=adapter, guard=guard, budget=budget,
+                           engine=engine, sidequery=sidequery)
+    rc = EXIT_OK
+
+    async def _run():
+        nonlocal rc
+        async for ev in query_loop(params, deps):
+            if ev.kind == "text_delta":
+                sys.stdout.write(ev.text)
+                sys.stdout.flush()
+            elif ev.kind == "tool_result":
+                r = ev.tool_results[0]
+                mark = "!" if r.get("is_error") else "+"
+                head = str(r.get("content", ""))[:160].replace("\n", " ")
+                sys.stderr.write(f"  [{mark}] {head}\n")
+            elif ev.kind == "transition":
+                sys.stderr.write(f"  ~ {ev.transition} (turn {ev.turn})\n")
+            elif ev.kind == "prompt_too_long":
+                sys.stderr.write("PROMPT TOO LONG: blocking limit "
+                                 "reached before the model call\n")
+                rc = EXIT_PROMPT_TOO_LONG
+            elif ev.kind == "watchdog":
+                sys.stderr.write(f"TURN WATCHDOG: {ev.reason} "
+                                 f"({ev.detail})\n")
+                rc = EXIT_WATCHDOG
+            elif ev.kind == "error":
+                sys.stderr.write(f"MODEL ERROR: {ev.reason}\n")
+                rc = EXIT_MODEL_ERROR
+            elif ev.kind == "completed":
+                sys.stdout.write("\n")
+                d = ev.detail or {}
+                sys.stderr.write(
+                    f"[completed] reason={ev.reason} turns={d.get('turns')} "
+                    f"tool_calls={d.get('tool_calls')} "
+                    f"tokens={d.get('prompt_tokens')}/"
+                    f"{d.get('completion_tokens')}\n")
+                if ev.reason in ("end_turn", "max_turns", "aborted"):
+                    rc = EXIT_COMPLETED
+        return rc
+
+    try:
+        return asyncio.run(_run())
+    except KeyboardInterrupt:
+        sys.stderr.write("\n[interrupted]\n")
+        return 130
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

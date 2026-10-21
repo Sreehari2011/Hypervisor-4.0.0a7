@@ -1,0 +1,11 @@
+User ID exists in the database.
+ <<== [1]
+User ID exists in the database.
+ <<== [1' AND 1=1 -- x]
+User ID is MISSING from the database.
+ <<== [1' AND 1=2 -- x]
+User ID is MISSING from the database.
+ <<== [1' AND SLEEP(3) -- x]
+== timing:
+run/blind.sh: line 11: /usr/bin/time: No such file or directory
+run/blind.sh: line 11: /usr/bin/time: No such file or directory

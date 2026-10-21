@@ -1,0 +1,23 @@
+=== ENGAGEMENT KNOWLEDGE (rev 169 · updated 7s ago by tier_a:read_file · budget 700) ===
+
+OBJECTIVE
+  O1 (verbatim): "Scoped engagement dppm-run3 on dppmsserchhip.mizoram.gov.in within signed scope sha256:6e91b10c1ea3104f@v1, continuation of the assessment with NIC coordination acknowledged. Established in the prior run, verified and not to be re-derived: DNS A record 13.200.99.3; nginx 1.28.3; HTTP 80 redirects 301 to HTTPS; TLS 1.3 with Let's Encrypt certificate; a Next.js application; robots.txt and sitemap.xml 404; /api/ returns 308; favicon 200. The subdomain admin-dppmsserchhip.mizoram.gov.in is ADJACENT and out of scope in strict mode - never probe it. Tasks this run: (1) enumerate authorized TCP services with nmap -sT connect scans ONLY wrapped as proxychains4 nmap, sized to complete well under 300 seconds per call - start with --top-ports 100 at --max-rate 64 and -T2, never attempt a full 65535-port range in one call; (2) run nmap -sV version detection ONLY against ports found open, same wrapping and sizing; (3) identify versions and patch levels against known CVEs from banners and response analysis; (4) verify at most one non-destructive PoC per confirmed exposure class, PoC-only per RoE: no destructive actions, no persistent payloads, no denial of service. Third-party OSINT sites are out of scope by platform design - do not attempt them. Prefix every command that touches the target with proxychains4. Use mkdir -p before writing evidence files. Keep every artifact under the workspace, track the plan with todo_write, begin the port scan immediately, and finish with a structured findings summary citing scope fingerprint sha256:6e91b10c1ea3104f@v1 and per-finding evidence paths. Then stop."
+
+TASKS: 0 running · 0 blocked · 7 done
+
+ATTACK SURFACE (16 entities · 11 in scope · 5 adjacent · mode=strict)
+  e2 host 13.200.99.3 · 8 calls · ADJACENT (visible, never targeted)
+  e1 endpoint https://nmap.org · 7 calls · ADJACENT (visible, never targeted)
+  e3 domain dppmsserchhip.mizoram.gov.in · 7 calls
+  e5 endpoint https://dppmsserchhip.mizoram.gov.in/ · 5 calls
+  e4 endpoint https://nmap.org/submit/ · 5 calls · ADJACENT (visible, never targeted)
+  e13 host 139.84.217.111 · 5878 · 2 calls · ADJACENT (visible, never targeted)
+  e17 endpoint https://dppmsserchhip.mizoram.gov.in/_next/static/chunks/0pqt~8bl3ukh4 · 2 calls
+  e16 endpoint https://dppmsserchhip.mizoram.gov.in/_next/static/chunks/turbopack-0f. · 2 calls
+  e15 endpoint https://dppmsserchhip.mizoram.gov.in/api/ · 2 calls
+  e12 endpoint https://dppmsserchhip.mizoram.gov.in/_next/image?url=%2Fserchhip-block · 2 calls
+  +6 more entities — memory_query('e11')
+
+RESIDUAL NOTES: none recorded.
+
+DRILLDOWN: every id above is queryable via memory_query.

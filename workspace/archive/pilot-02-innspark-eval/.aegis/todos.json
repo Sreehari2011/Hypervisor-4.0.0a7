@@ -1,0 +1,40 @@
+{
+  "todos": [
+    {
+      "content": "Phase 1: Passive recon on innspark.in (DNS, WHOIS, cert transparency, OSINT)",
+      "id": "T1",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Phase 1b: Subdomain discovery + expand-mode scope admissions (journal adjacent entities)",
+      "id": "T2",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Phase 2: Rate-capped TCP connect-scan service mapping (-sT --max-rate 200 -T3; NO raw sockets)",
+      "id": "T3",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Phase 3: Web attack-surface mapping (technologies, dirs, forms, endpoints)",
+      "id": "T4",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Phase 4: Vulnerability assessment + exploitation chains to demonstrated impact (poc_only=false)",
+      "id": "T5",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Report: compile findings summary with scope_ref + evidence paths",
+      "id": "T6",
+      "priority": "medium",
+      "status": "completed"
+    }
+  ]
+}

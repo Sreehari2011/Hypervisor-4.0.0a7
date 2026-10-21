@@ -1,0 +1,16 @@
+{
+  "todos": [
+    {
+      "content": "final_report.json + compile_report + exec summary",
+      "id": "T32",
+      "priority": "high",
+      "status": "completed"
+    },
+    {
+      "content": "Captcha partial closure (RUN3) - recorded as negative result",
+      "id": "T33",
+      "priority": "high",
+      "status": "completed"
+    }
+  ]
+}

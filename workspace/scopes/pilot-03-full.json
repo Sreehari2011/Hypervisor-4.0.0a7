@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "engagement_id": "PILOT-03-DPPM-SERCHHIP",
+  "mode": "strict",
+  "targets": [
+    {
+      "target": "dppmsserchhip.mizoram.gov.in",
+      "type": "domain",
+      "ports": [],
+      "protocols": [
+        "tcp",
+        "http",
+        "https"
+      ],
+      "authorized": true,
+      "authorization_token": "GoM IT Dept File No IT/VAPT/2026/0147 dated 10-10-2026, signed Lahrinsanga Director(IT); CERT-In empanel INSP202300458; window 10-10-2026 to 10-11-2026",
+      "expires_at": 1794335340
+    }
+  ],
+  "excludes": [],
+  "roe": {
+    "poc_only": true,
+    "allow_persistent_payloads": false,
+    "destructive_allowed": false
+  },
+  "authorization": {
+    "signed_sha256": "6e91b10c1ea3104f44f55217f45ba5b06af318311dc859532355ee5cb370fd90"
+  }
+}

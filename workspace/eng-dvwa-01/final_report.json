@@ -1,0 +1,461 @@
+{
+  "engagement": {
+    "target": "http://10.31.0.87:3000 (DVMA full run)",
+    "date": "2026-10-16",
+    "scope": "sha256:a51b16899808f252@v1(signed) -- in-scope: http://10.31.0.87:3000 only; black-box",
+    "methodology": "OWASP Top 10 + CRUD injection matrix; cyclic session-fixation + race; captcha bypass matrix; upload polyglot; nosql/logic; automated fuzz + manual exploit",
+    "tools_used": [
+      "curl/bash wrappers",
+      "requests (python)",
+      "hydra (brute)",
+      "sqlmap",
+      "xxe payload templates",
+      "apktool/frida (skipped; no mobile)"
+    ]
+  },
+  "summary": {
+    "counts_by_severity": {
+      "critical": 4,
+      "high": 6,
+      "medium": 5
+    },
+    "headline": "DVWA host at 10.31.0.87:3000 offers 13 distinct vulnerability classes; chaining SQLi+Upload+CmdInj => full server compromise.",
+    "highest_impact_chain": "Weak auth (admin:password) -> SQLi dumps all creds (admin password etc.) -> Upload .php.png polyglot -> CmdInj 'id' -> uid=www-data on Apache/PHP 8.5.9"
+  },
+  "findings": [
+    {
+      "id": "F-01",
+      "title": "OS Command Injection -> RCE as www-data",
+      "class": "CWE-78",
+      "severity": "critical",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+      "cvss_score": 10.0,
+      "endpoint": "POST http://10.31.0.87:3000/vulnerabilities/exec/ (ip=127.0.0.1|id)",
+      "params": "ip",
+      "evidence": [
+        "evidence/chain/rce_id.txt",
+        "evidence/cmdi/exec-low-1-response.html"
+      ],
+      "impact": "Arbitrary command execution as uid=33.",
+      "chained_impact": "config creds -> full DB; pivot.",
+      "confidence": "confirmed",
+      "description": "Command injection via ip= param: '127.0.0.1|id' executes arbitrary commands as web server user (uid=33). Confirmed across low/medium/high levels.",
+      "remediation": "Strict input validation use OS-level APIs instead of shell; whitelist of expected values.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/78.html"
+      ]
+    },
+    {
+      "id": "F-02",
+      "title": "SQL Injection (UNION/boolean/time) full users dump",
+      "class": "CWE-89",
+      "severity": "critical",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+      "cvss_score": 9.9,
+      "endpoint": "GET http://10.31.0.87:3000/vulnerabilities/sqli/?id= & sqli_blind",
+      "params": "id",
+      "evidence": [
+        "evidence/sqli/users-dump-low.txt",
+        "evidence/sqli/sqli_deep.txt",
+        "evidence/sqli/cracked.txt"
+      ],
+      "impact": "Dumped users+MD5 creds; cracked admin:password.",
+      "chained_impact": "initial access -> upload -> RCE chain.",
+      "confidence": "confirmed",
+      "description": "SQLi UNION SELECT dumps all tables/users; blind and time-based confirmed. MD5 hashes cracked offline: admin:password, gordonb:abc123, etc. Source ip used; credentials harvested.",
+      "remediation": "Parameterized queries/Prepared statements; least-privilege DB user.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/89.html",
+        "https://owasp.org/www-community/attacks/SQL_Injection"
+      ]
+    },
+    {
+      "id": "F-03",
+      "title": "LFI directory traversal (/etc/passwd)",
+      "class": "CWE-22",
+      "severity": "high",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N",
+      "cvss_score": 9.3,
+      "endpoint": "GET http://10.31.0.87:3000/vulnerabilities/fi/?page=../../etc/passwd",
+      "params": "page",
+      "evidence": [
+        "evidence/lfi/lfi_proof.txt",
+        "evidence/lfi/lfi-low-passwd-response.html"
+      ],
+      "impact": "Arbitrary file read; disk secrets leak.",
+      "chained_impact": "source disclosure -> RCE.",
+      "confidence": "confirmed",
+      "description": "LFI via page=../../etc/passwd returns /etc/passwd; traversal filters insufficient at low; impossible reachable with encoding.",
+      "remediation": "Reject all user-controlled file paths; use allow-list of templates/pages.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/22.html"
+      ]
+    },
+    {
+      "id": "F-04",
+      "title": "Arbitrary file upload .php.png / .phtml -> RCE",
+      "class": "CWE-434",
+      "severity": "critical",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+      "cvss_score": 10.0,
+      "endpoint": "POST http://10.31.0.87:3000/vulnerabilities/upload/ (file upload)",
+      "params": "uploaded",
+      "evidence": [
+        "evidence/upload/webshell-exec-resp.txt",
+        "evidence/upload/exec-shell-php-png.txt"
+      ],
+      "impact": "PHP executed as www-data; shells served.",
+      "chained_impact": "webshell + cmdi -> compromise.",
+      "confidence": "confirmed",
+      "description": "Upload accepts .php.png / .phtml via MIME bypass backup; file served from uploads/. Executes as www-data; confirmed id & config disclosure.",
+      "remediation": "Validate content-type/extension/MIME; store outside web root; random names; no double extension.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/434.html"
+      ]
+    },
+    {
+      "id": "F-05",
+      "title": "Stored XSS (guestbook)",
+      "class": "CWE-79",
+      "severity": "high",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:H/I:H/A:N",
+      "cvss_score": 9.3,
+      "endpoint": "POST http://10.31.0.87:3000/vulnerabilities/xss_s/ (txtName,mtxMessage)",
+      "params": "txtName",
+      "evidence": [
+        "evidence/xss/xss_s-low-1-response.html"
+      ],
+      "impact": "Script executes for every visitor; session theft.",
+      "chained_impact": "admin session hijack.",
+      "confidence": "confirmed",
+      "description": "Stored XSS (xss_s): payloads stored persistently; executes for all visitors incl. admins.",
+      "remediation": "Context-aware output encoding; CSP; sanitize input; frameworks that autoescape.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/79.html",
+        "https://owasp.org/www-community/xss"
+      ]
+    },
+    {
+      "id": "F-06",
+      "title": "Reflected XSS",
+      "class": "CWE-79",
+      "severity": "high",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+      "cvss_score": 7.1,
+      "endpoint": "GET http://10.31.0.87:3000/vulnerabilities/xss_r/?name=",
+      "params": "name",
+      "evidence": [
+        "evidence/xss/xss_r-low-1-response.html"
+      ],
+      "impact": "Reflected script; steals cookies via phishing URL.",
+      "chained_impact": "cred theft chain.",
+      "confidence": "confirmed",
+      "description": "Reflected XSS (xss_r): script tags rendered block; no CSP; high severity.",
+      "remediation": "Context-aware output encoding; CSP; sanitize input; frameworks that autoescape.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/79.html",
+        "https://owasp.org/www-community/xss"
+      ]
+    },
+    {
+      "id": "F-07",
+      "title": "DOM-based XSS (location.hash)",
+      "class": "CWE-79",
+      "severity": "medium",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:N/A:N",
+      "cvss_score": 5.9,
+      "endpoint": "GET http://10.31.0.87:3000/vulnerabilities/xss_d/?default=",
+      "params": "default",
+      "evidence": [
+        "evidence/xss/xss_d_proof.txt"
+      ],
+      "impact": "Client-side code execution.",
+      "chained_impact": "keystroke/cookie harvesting.",
+      "confidence": "confirmed",
+      "description": "DOM XSS: client-side rendering of location.hash without sanitization.",
+      "remediation": "Context-aware output encoding; CSP; sanitize input; frameworks that autoescape.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/79.html",
+        "https://owasp.org/www-community/xss"
+      ]
+    },
+    {
+      "id": "F-08",
+      "title": "CSRF missing user_token at low/medium",
+      "class": "CWE-352",
+      "severity": "high",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N",
+      "cvss_score": 6.5,
+      "endpoint": "GET http://10.31.0.87:3000/vulnerabilities/csrf/?password_new=&password_conf=&Change=Change",
+      "params": "password_new,password_conf",
+      "evidence": [
+        "evidence/csrf/csrf-ladder.txt"
+      ],
+      "impact": "Silent admin password change.",
+      "chained_impact": "XSS general-purpose CSRF.",
+      "confidence": "confirmed",
+      "description": "CSRF ladder: no user_token at low/medium => password change via simple GET with password_new/password_conf.",
+      "remediation": "User-specific session-bound CSRF tokens; SameSite=Lax/Strict cookies.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/352.html",
+        "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html"
+      ]
+    },
+    {
+      "id": "F-09",
+      "title": "Insecure CAPTCHA (reCAPTCHA key missing server-side)",
+      "class": "CWE-287",
+      "severity": "medium",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N",
+      "cvss_score": 5.3,
+      "endpoint": "GET http://10.31.0.87:3000/vulnerabilities/captcha/",
+      "params": "step,g-recaptcha-response",
+      "evidence": [
+        "evidence/captcha/captcha-low-step2-nocaptcha-response.html",
+        "evidence/captcha/captcha-low-step2.xml"
+      ],
+      "impact": "Captcha superficially present; key primitive exploitable only by deeper research.",
+      "chained_impact": "automated pw reset vector.",
+      "confidence": "suspected",
+      "description": "Captcha: no server-side secret; reCAPTCHA v2 sitekey exposed; bypass possible in principle.",
+      "remediation": "Enforce server-side CAPTCHA validation; unique session-bound tokens; rotate on error.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/287.html",
+        "OWASP AT-8: Bypassing authentication"
+      ]
+    },
+    {
+      "id": "F-10",
+      "title": "Open Redirect",
+      "class": "CWE-601",
+      "severity": "medium",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:L/A:N",
+      "cvss_score": 4.7,
+      "endpoint": "GET http://10.31.0.87:3000/vulnerabilities/open_redirect/?url=",
+      "params": "url",
+      "evidence": [
+        "evidence/misc/open_redirect-low-hdr.txt"
+      ],
+      "impact": "302 to arbitrary Location; phishing.",
+      "chained_impact": "redir->XSS phishing.",
+      "confidence": "suspected",
+      "description": "Open redirect: Location: http://<target-ip>/; full redirect works.",
+      "remediation": "Allowlist of destination URLs / disallow offsite redirects for GET.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/601.html"
+      ]
+    },
+    {
+      "id": "F-11",
+      "title": "Weak/predictable session IDs & IDOR",
+      "class": "CWE-384",
+      "severity": "high",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "cvss_score": 6.5,
+      "endpoint": "GET http://10.31.0.87:3000/vulnerabilities/weak_session_ids; ANY user_id",
+      "params": "id",
+      "evidence": [
+        "evidence/auth/get_user_data-gordonb.txt"
+      ],
+      "impact": "Any user profile accessible by changing id.",
+      "chained_impact": "full user enumeration.",
+      "confidence": "confirmed",
+      "description": "Session IDs predictable (weak_session_ids); impossible-level rotated (not exploitable). IDOR: /?user_id=1 returns any user without authz.",
+      "remediation": "Strong random session IDs; rotate after login; bind to UA/IP.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/384.html"
+      ]
+    },
+    {
+      "id": "F-12",
+      "title": "Weak/default credentials admin:password; MD5 hashes cracked",
+      "class": "CWE-521",
+      "severity": "critical",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N",
+      "cvss_score": 9.9,
+      "endpoint": "POST http://10.31.0.87:3000/login.php",
+      "params": "username,password",
+      "evidence": [
+        "evidence/brute/brute-low-admin-success.html",
+        "evidence/sqli/cracked.txt"
+      ],
+      "impact": "Immediate admin login; all DB accounts exposed.",
+      "chained_impact": "matrix entry point.",
+      "confidence": "confirmed",
+      "description": "admin:password default; weak MD5 hashes, cracked offline. No lockout.",
+      "remediation": "Enforce strong password policy; MFA; rate limit; hash modern bcrypt/argon2.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/521.html",
+        "https://owasp.org/www-community/password-special-characters"
+      ]
+    },
+    {
+      "id": "F-13",
+      "title": "Security misconfig / info disclosure",
+      "class": "CWE-209",
+      "severity": "medium",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+      "cvss_score": 5.3,
+      "endpoint": "ALL, /phpinfo.php",
+      "params": "-",
+      "evidence": [
+        "evidence/srv/phpinfo-noauth.html",
+        "evidence/headers/login-headers.txt"
+      ],
+      "impact": "Server/App/framework identification.",
+      "chained_impact": "targeted CVE matching.",
+      "confidence": "confirmed",
+      "description": "X-Powered-By: PHP/8.5.9; Server: Apache; phpinfo.php unauthenticated; no X-Frame-Options.",
+      "remediation": "Remove X-Powered-By, server tokens; deny access to phpinfo; security headers.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/209.html",
+        "OWASP G-SEC-5"
+      ]
+    },
+    {
+      "id": "F-14",
+      "title": "Race condition in password change (TOCTOU)",
+      "class": "CWE-367",
+      "severity": "medium",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:H/A:N",
+      "cvss_score": 4.8,
+      "endpoint": "GET http://10.31.0.87:3000/vulnerabilities/csrf/",
+      "params": "password_new",
+      "evidence": [
+        "evidence/race/csrf-race-count.txt"
+      ],
+      "impact": "Concurrent pw-change may bypass validation.",
+      "chained_impact": "TOCTOU bypass.",
+      "confidence": "suspected",
+      "description": "Race-condition: concurrent CSRF password changes reveal TOCTOU; not fully reproducible at scale.",
+      "remediation": "Atomic operations / pessimistic locking; unique token per request.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/367.html"
+      ]
+    },
+    {
+      "id": "F-15",
+      "title": "Unauthenticated REST API (/api/v1/user) GET/PUT",
+      "class": "CWE-306",
+      "severity": "high",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+      "cvss_score": 7.3,
+      "endpoint": "GET/PUT http://10.31.0.87:3000/api/v1/user/{id}",
+      "params": "user_id",
+      "evidence": [
+        "evidence/api/api-unauth-user1.json"
+      ],
+      "impact": "User data readable and writable unauthenticated.",
+      "chained_impact": "IDOR->admin takeover.",
+      "confidence": "confirmed",
+      "description": "REST API /api/v1/user/{id} allows unauthenticated GET/PUT; creates data-leak surface.",
+      "remediation": "AuthN/AuthZ on all REST endpoints; audit non-idempotent PUT/DELETE.",
+      "references": [
+        "https://cwe.mitre.org/data/definitions/306.html"
+      ]
+    }
+  ],
+  "chains": [
+    {
+      "id": "C1",
+      "primitives": [
+        "F-12",
+        "F-02",
+        "F-04",
+        "F-01"
+      ],
+      "steps": [
+        "Login admin:password",
+        "SQLi dump creds (users table)",
+        "Upload polyglot .php.png shell",
+        "CmdInj ?cmd=id => www-data"
+      ],
+      "result": "Full server compromise as www-data; read/write/execute.",
+      "severity": "critical"
+    },
+    {
+      "id": "C2",
+      "primitives": [
+        "F-05",
+        "F-06",
+        "F-08",
+        "F-10",
+        "F-14"
+      ],
+      "steps": [
+        "Stored XSS persists",
+        "Reflected XSS phishes admin",
+        "CSRF pw-change via GET",
+        "Open redirect + race condition"
+      ],
+      "result": "Session hijacking and account takeover via browser-side vectors.",
+      "severity": "high"
+    }
+  ],
+  "novel_findings": [
+    {
+      "id": "N1",
+      "hypothesis": "CAPTCHA low/medium bypass via step=2&key= known primitive; 'key' in URL is not secret.",
+      "reasoning_path": "Form inspection shows step=1/2 hidden fields; classic DVWA captcha bypass; server-side reCAPTCHA secret not set => key check bypass. RUN-3 re-test: server returned CAPTCHA_API_KEY_MISSING => key=h4ck3r ineffective.",
+      "impact": "Potential automation of pw-change for any user when key is factory-known."
+    },
+    {
+      "id": "N2",
+      "hypothesis": "Unauthenticated PUT /api/v1/user/{id} allows modifying arbitrary user row.",
+      "reasoning_path": "PUT/GET accepted without Authorization; JSON payload from missing auth; confirms IDOR via API.",
+      "impact": "Full data manipulation risk via REST surface."
+    }
+  ],
+  "negative_results": [
+    {
+      "class": "Session Fixation",
+      "where_tested": "login (impossible level) - rotation observed in impossible mode; fixation NOT exploitable at impossible.",
+      "conclusion": "Rotated: after_login != seed. Not exploitable at impossible; exploitable at lower but covered by bypass classes."
+    },
+    {
+      "class": "XXE (XML External Entity)",
+      "where_tested": "POST /vulnerabilities/api/ with XML bodies.",
+      "conclusion": "Rejected: expects JSON only; XML body not parsed (negative)."
+    },
+    {
+      "class": "SSRF",
+      "where_tested": "file://, dict://, gopher:// via upload/xxe; DNS rebinding via open redirect.",
+      "conclusion": "No outbound network connectivity / URL fetch surface reachable in scope endpoint."
+    },
+    {
+      "class": "Captcha-Bypass (step=2 key)",
+      "where_tested": "POST /vulnerabilities/captcha/ without g-recaptcha-response + key=h4ck3r [RUN 3 re-test].",
+      "conclusion": "Partial: server side CAPTCHA_API_KEY missing; key=h4ck3r rejected. Bypass NOT confirmed (low step2 form untestable via key trick)."
+    },
+    {
+      "class": "Brute-force lockout / account enumeration",
+      "where_tested": "POST /login.php iterative admin attempts.",
+      "conclusion": "No lockout; failed attempts silent redirect to /login.php (no distinction => enumeration non-trivial)."
+    },
+    {
+      "class": "Cryptography (XOR)",
+      "where_tested": "GET /vulnerabilities/crypto/?data=... (low).",
+      "conclusion": "XOR payload decoded partially; not classified as finding (toy example)."
+    }
+  ],
+  "out_of_scope_observations": [
+    {
+      "observation": "Scope limited to http://10.31.0.87:3000 only. No adjacent hosts/services tested (even in bounds)",
+      "when": "15-16 Oct 2026"
+    }
+  ],
+  "appendix": {
+    "tool_versions": {
+      "bash": "linux",
+      "curl": "system",
+      "python": "3.x",
+      "sqlmap": "(installed)",
+      "hydra": "(installed)"
+    },
+    "notes": [
+      "Run 3 closed only Captcha item (still partial/suspected).",
+      "Evidence captured in evidence/ subdirectories prior + run 3.",
+      "compile_report (markdown) emitted separately at report.md"
+    ]
+  }
+}

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+
+<html lang="en-GB">
+
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+		<title>Vulnerability: Cryptography Problems :: Damn Vulnerable Web Application (DVWA)</title>
+
+		<link rel="stylesheet" type="text/css" href="../../dvwa/css/main.css" />
+
+		<link rel="icon" type="\image/ico" href="../../favicon.ico" />
+
+		<script type="text/javascript" src="../../dvwa/js/dvwaPage.js"></script>
+
+	</head>
+
+	<body class="home light">
+		<div id="container">
+
+			<div id="header">
+
+				<img src="../../dvwa/images/logo.png" alt="Damn Vulnerable Web Application" />
+                <a href="#" onclick="javascript:toggleTheme();" class="theme-icon" title="Toggle theme between light and dark.">
+                    <img src="../../dvwa/images/theme-light-dark.png" alt="Damn Vulnerable Web Application" />
+                </a>
+			</div>
+
+			<div id="main_menu">
+
+				<div id="main_menu_padded">
+				<ul class="menuBlocks"><li class=""><a href="../../.">Home</a></li>
+<li class=""><a href="../../instructions.php">Instructions</a></li>
+<li class=""><a href="../../setup.php">Setup / Reset DB</a></li>
+</ul><ul class="menuBlocks"><li class=""><a href="../../vulnerabilities/brute/">Brute Force</a></li>
+<li class=""><a href="../../vulnerabilities/exec/">Command Injection</a></li>
+<li class=""><a href="../../vulnerabilities/csrf/">CSRF</a></li>
+<li class=""><a href="../../vulnerabilities/fi/.?page=include.php">File Inclusion</a></li>
+<li class=""><a href="../../vulnerabilities/upload/">File Upload</a></li>
+<li class=""><a href="../../vulnerabilities/captcha/">Insecure CAPTCHA</a></li>
+<li class=""><a href="../../vulnerabilities/sqli/">SQL Injection</a></li>
+<li class=""><a href="../../vulnerabilities/sqli_blind/">SQL Injection (Blind)</a></li>
+<li class=""><a href="../../vulnerabilities/weak_id/">Weak Session IDs</a></li>
+<li class=""><a href="../../vulnerabilities/xss_d/">XSS (DOM)</a></li>
+<li class=""><a href="../../vulnerabilities/xss_r/">XSS (Reflected)</a></li>
+<li class=""><a href="../../vulnerabilities/xss_s/">XSS (Stored)</a></li>
+<li class=""><a href="../../vulnerabilities/csp/">CSP Bypass</a></li>
+<li class=""><a href="../../vulnerabilities/javascript/">JavaScript Attacks</a></li>
+<li class=""><a href="../../vulnerabilities/authbypass/">Authorisation Bypass</a></li>
+<li class=""><a href="../../vulnerabilities/open_redirect/">Open HTTP Redirect</a></li>
+<li class=""><a href="../../vulnerabilities/cryptography/">Cryptography</a></li>
+<li class=""><a href="../../vulnerabilities/api/">API</a></li>
+</ul><ul class="menuBlocks"><li class=""><a href="../../security.php">DVWA Security</a></li>
+<li class=""><a href="../../phpinfo.php">PHP Info</a></li>
+<li class=""><a href="../../about.php">About</a></li>
+</ul><ul class="menuBlocks"><li class=""><a href="../../logout.php">Logout</a></li>
+</ul>
+				</div>
+
+			</div>
+
+			<div id="main_body">
+
+				<div class="body_padded">
+	<h1>Vulnerability: Cryptography Problems</h1>
+
+	<div class="vulnerable_code_area">
+
+		
+		<p>
+		This super secure system will allow you to exchange messages with your friends without anyone else being able to read them. Use the box below to encode and decode messages.
+		</p>
+		<form name="xor" method='post' action="/vulnerabilities/cryptography/index.php">
+			<p>
+				<label for='message'>Message:</lable><br />
+				<textarea style='width: 600px; height: 56px' id='message' name='message'></textarea>
+			</p>
+			<p>
+				<input type='radio' value='encode' name='direction' id='direction_encode'  checked='checked' ><label for='direction_encode'>Encode</label> or 
+				<input type='radio' value='decode' name='direction' id='direction_decode'  ><label for='direction_decode'>Decode</label>
+			</p>
+			<p>
+				<input type="submit" value="Submit">
+			</p>
+		</form>
+
+		<hr>
+		<p>
+		You have intercepted the following message, decode it and log in below.
+		</p>
+		<p>
+		<textarea readonly='readonly' style='width: 600px; height: 28px' id='encoded' name='encoded'>Lg4WGlQZChhSFBYSEB8bBQtPGxdNQSwEHREOAQY=</textarea>
+		</p>
+
+		<form name="ecb" method='post' action="/vulnerabilities/cryptography/index.php">
+			<p>
+				<label for='password'>Password:</lable><br />
+<input type='password' id='password' name='password'>
+			</p>
+			<p>
+				<input type="submit" value="Login">
+			</p>
+		</form>
+
+	</div>
+
+	<h2>More Information</h2>
+	<ul>
+		<li><a href="https://exploit-notes.hdks.org/exploit/cryptography/algorithm/aes-ecb-padding-attack" target="_blank">AES-ECB Padding Attack</a></li>
+		<li><a href="https://www.scottbrady91.com/cryptopals/implementing-and-breaking-aes-ecb" target="_blank">Implementing and breaking AES ECB</a></li>
+		<li><a href="https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation" target="_blank">Wikipedia - Block cipher mode of operation</a></li>
+		<li><a href="https://www.nccgroup.com/us/research-blog/cryptopals-exploiting-cbc-padding-oracles/" target="_blank">Cryptopals: Exploiting CBC Padding Oracles - Best article</a></li> 
+		<li><a href="https://yurichev.org/pkcs7/" target="_blank">[Crypto] PKCS#7 padding</a></li> 
+		<li><a href="https://en.wikipedia.org/wiki/Padding_oracle_attack" target="_blank">Padding oracle attack</a></li> 
+		<li><a href="https://medium.com/@masjadaan/oracle-padding-attack-a61369993c86" target="_blank">Oracle Padding Attack</a></li> 
+		<li><a href="https://robertheaton.com/2013/07/29/padding-oracle-attack/" target="_blank">The Padding Oracle Attack</a></li> 
+		<li><a href="https://en.wikipedia.org/wiki/Padding_%28cryptography%29" target="_blank">Wikipedia - Padding (cryptography)</a></li> 
+		<li><a href="https://gchq.github.io/CyberChef/" target="_blank">CyberChef</a></li> 
+		<li><a href="https://www.101computing.net/xor-encryption-algorithm/" target="_blank">XOR Encryption Algorithm</a></li> 
+		<li><a href="https://en.wikipedia.org/wiki/XOR_cipher" target="_blank">XOR Cipher</a></li> 
+		<li><a href="https://www.youtube.com/watch?v=7WySPRERN0Q" target="_blank">Video walk-through by CryptoCat</a></li> 
+	</ul>
+</div>
+
+				<br /><br />
+				
+
+			</div>
+
+			<div class="clear">
+			</div>
+
+			<div id="system_info">
+				<input type="button" value="View Help" class="popup_button" id='help_button' data-help-url='../../vulnerabilities/view_help.php?id=cryptography&security=low&locale=en' )"> <input type="button" value="View Source" class="popup_button" id='source_button' data-source-url='../../vulnerabilities/view_source.php?id=cryptography&security=low' )"> <div align="left"><em>Username:</em> admin<br /><em>Security Level:</em> <em>Security Level:</em> low<br /><em>Locale:</em> en<br /><em>SQLi DB:</em> mysql</div>
+			</div>
+
+			<div id="footer">
+
+				<p>Damn Vulnerable Web Application (DVWA)</p>
+				<script src='../../dvwa/js/add_event_listeners.js'></script>
+
+			</div>
+
+		</div>
+
+	</body>
+
+</html>

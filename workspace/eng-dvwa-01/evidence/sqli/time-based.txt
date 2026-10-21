@@ -1,0 +1,2 @@
+run/blind.sh: line 11: /usr/bin/time: No such file or directory
+run/blind.sh: line 11: /usr/bin/time: No such file or directory

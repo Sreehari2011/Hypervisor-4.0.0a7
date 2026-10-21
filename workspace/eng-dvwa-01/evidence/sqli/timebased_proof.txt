@@ -1,0 +1,4 @@
+3013 ms  <<== [1' AND SLEEP(3) -- x]
+8 ms  <<== [1' AND SLEEP(0) -- x]
+3009 ms  <<== [1' AND IF(1=1,SLEEP(3),0) -- x]
+9 ms  <<== [1' AND IF(1=2,SLEEP(3),0) -- x]

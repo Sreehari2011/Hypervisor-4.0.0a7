@@ -1,0 +1,17 @@
+# HTTP baseline headers (captured via advanced_http_request, 2026-10-15 ~05:49 UTC)
+#
+# GET http://dppmsserchhip.mizoram.gov.in/   -> HTTP 200 (NOT a 301 redirect this run)
+# GET https://dppmsserchhip.mizoram.gov.in/  -> HTTP 200
+# Both responses:
+#   Server: nginx/1.28.3
+#   X-Powered-By: Next.js
+#   Vary: rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding
+#   Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate
+#   link: preload /_next/static/chunks/09r8q-1x6z00d.css
+# Passive scanner alerts (both schemes):
+#   MISSING_HEADER x-frame-options
+#   MISSING_HEADER x-content-type-options
+#   MISSING_HEADER strict-transport-security
+#   MISSING_HEADER content-security-policy
+#   SERVER_VERSION nginx/1.28.3 (version disclosed)
+# Deviation from prior run: port 80 previously 301-redirected to HTTPS; now serves the app over cleartext HTTP 200.

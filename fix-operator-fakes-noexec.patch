@@ -1,0 +1,304 @@
+From ec654a1dfe0e55a476cdb035497384b043547e31 Mon Sep 17 00:00:00 2001
+From: AEGIS Platform Team <aegis-ops@localhost>
+Date: Mon, 12 Oct 2026 09:01:55 +0000
+Subject: [PATCH] P4 operator fakes + frida argv: survive the noexec engagement
+ container (Test-4 round 3)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The clean engagement container (compose tmpfs /tmp, noexec by Docker
+default) exposed two stacked defects the criterion verdict cannot see:
+the harness's operator fakes lived in tempfile.mkdtemp() — on that
+noexec /tmp — so os.access(X_OK) failed, shutil.which() silently
+skipped them, and the image's REAL frida/mitmdump ran instead of the
+fakes; the real frida then rejected the oracle-era --no-pause flag
+(current frida-tools auto-resume on spawn and removed it), so every
+LIVE frida_hook on the engagement image harvested a usage error —
+while the scripted leg still reported rc=0/replay=True/slo=pass (the
+criterion verifies capture-window mechanics, not payloads).
+
+Fixes: (1) operator.py drops --no-pause from the frida argv (correct
+for every frida the platform rides; ancient CLIs merely harvest a
+quieter window); (2) run_exit_criterion.py installs the fakes into the
+run scratch (under OUTPUT — the container's exec-allowed evidence
+volume) instead of /tmp, and _assert_fakes_runnable refuses LOUDLY on
+a non-executable placement instead of silently running the real
+binaries; the fakes now persist in --keep evidence for the analyst
+record. Reproduced locally (TMPDIR on a noexec tmpfs + a real-frida
+mimic on PATH recreated the container's exact [!] harvest) and
+verified fixed end-to-end on the same hostile environment.
+
+Regression tests: tests/test_criterion_fakes.py (4: install+run,
+loud refusal, PATH shadowing over a real binary, battery contract) +
+tests/test_operator_tools.py (1: frida-17-style mimic records argv,
+rejects --no-pause, hooks must stream). Full suite 315 -> 320 green.
+---
+ hypervisor/tools/vapt/operator.py |  9 ++-
+ scripts/run_exit_criterion.py     | 39 ++++++++++---
+ tests/test_criterion_fakes.py     | 96 +++++++++++++++++++++++++++++++
+ tests/test_operator_tools.py      | 47 +++++++++++++++
+ 4 files changed, 183 insertions(+), 8 deletions(-)
+ mode change 100644 => 100755 hypervisor/tools/vapt/operator.py
+ create mode 100644 tests/test_criterion_fakes.py
+ mode change 100644 => 100755 tests/test_operator_tools.py
+
+diff --git a/hypervisor/tools/vapt/operator.py b/hypervisor/tools/vapt/operator.py
+old mode 100644
+new mode 100755
+index 78abcf0..8e00aac
+--- a/hypervisor/tools/vapt/operator.py
++++ b/hypervisor/tools/vapt/operator.py
+@@ -465,7 +465,14 @@ class FridaHookTool(Tool):
+                 "-l", script_path]
+         if device == "emulator":
+             argv += ["-H", "127.0.0.1:27042"]
+-        argv += ["--no-pause"]
++        # NOTE: no --no-pause. The oracle (3.7.3) rode old frida, where
++        # a spawned process stayed paused without the flag; current
++        # frida-tools (what the engagement image's Kali rolling ships)
++        # auto-resume once scripts load and REJECT the flag outright —
++        # Test-4's clean container caught the live "unrecognized
++        # arguments: --no-pause" refusal. Dropping it is correct for
++        # every frida the platform rides; ancient CLIs merely harvest a
++        # quieter window (honest degradation, never a fabricated one).
+         return await _bounded_capture(
+             argv, cwd=ctx.workspace, duration_s=float(duration),
+             label=self.name)
+diff --git a/scripts/run_exit_criterion.py b/scripts/run_exit_criterion.py
+index 7a21949..00e0e37 100755
+--- a/scripts/run_exit_criterion.py
++++ b/scripts/run_exit_criterion.py
+@@ -41,7 +41,6 @@ import json
+ import os
+ import shutil
+ import sys
+-import tempfile
+ import threading
+ import time
+ from pathlib import Path
+@@ -278,6 +277,25 @@ def install_operator_fakes(bindir: Path) -> None:
+         p = bindir / name
+         p.write_text(body)
+         p.chmod(0o755)
++    _assert_fakes_runnable(bindir)
++
++
++def _assert_fakes_runnable(bindir: Path) -> None:
++    """A noexec mount makes os.access(X_OK) fail, so shutil.which
++    silently SKIPS the fakes and the scenario rides the REAL operator
++    binaries — the scripted leg stops being the scripted leg (Test-4:
++    the container's /tmp tmpfs is noexec by Docker default, the fakes
++    landed there via tempfile.mkdtemp, and the image's real frida ran
++    and rejected the since-removed --no-pause flag). Refuse loudly."""
++    dead = [n for n in FAKE_BINARIES
++            if not os.access(bindir / n, os.X_OK)]
++    if dead:
++        raise SystemExit(
++            f"[!] operator fakes not executable in {bindir} "
++            f"({', '.join(dead)}) — the directory is on a noexec mount; "
++            "the scripted leg would silently run the REAL frida/mitmdump. "
++            "Run the criterion with its output (and thus the run scratch) "
++            "on an exec-allowed filesystem.")
+ 
+ 
+ # ─── the stop-hook fake ─────────────────────────────────────────────────
+@@ -338,11 +356,20 @@ def run_one_fake(idx: int, name: str, script, cfg: dict,
+     if cfg.get("AEGIS_CONTEXT_WINDOW_TOKENS"):
+         env["AEGIS_CONTEXT_WINDOW_TOKENS"] = cfg[
+             "AEGIS_CONTEXT_WINDOW_TOKENS"]
+-    tmpbin = None
++    fakebin = None
+     if cfg.get("_operator_fakes"):
+-        tmpbin = tempfile.mkdtemp(prefix="aegis-fake-bin-")
+-        install_operator_fakes(Path(tmpbin))
+-        env["PATH"] = tmpbin + os.pathsep + env.get("PATH", "")
++        # NOT tempfile.mkdtemp(): the engagement container's compose
++        # mounts /tmp as a noexec tmpfs (Docker default), a fake placed
++        # there fails shutil.which's X_OK check, and the scenario
++        # silently rides the REAL operator binaries (Test-4 finding).
++        # The run scratch lives under OUTPUT — the container's evidence
++        # volume bind-mount, which is exec-allowed — and the guard
++        # inside install_operator_fakes refuses loudly if even that
++        # is not. Keeping the fakes in the scratch also leaves them in
++        # the --keep evidence for the analyst record.
++        fakebin = scratch / "fake-bin"
++        install_operator_fakes(fakebin)
++        env["PATH"] = str(fakebin) + os.pathsep + env.get("PATH", "")
+     stop_hook_path = None
+     if cfg.get("_stop_hook"):
+         stop_hook_path = scratch / "stop-hook.sh"
+@@ -365,8 +392,6 @@ def run_one_fake(idx: int, name: str, script, cfg: dict,
+         os.environ.clear()
+         os.environ.update(old)
+         loop.call_soon_threadsafe(loop.stop)
+-        if tmpbin:
+-            shutil.rmtree(tmpbin, ignore_errors=True)
+     elapsed = time.monotonic() - t0
+     return {"name": name, "rc": rc, "elapsed_s": round(elapsed, 1),
+             "workspace": str(scratch / "ws"),
+diff --git a/tests/test_criterion_fakes.py b/tests/test_criterion_fakes.py
+new file mode 100644
+index 0000000..fe6093f
+--- /dev/null
++++ b/tests/test_criterion_fakes.py
+@@ -0,0 +1,96 @@
++"""Operator-fake placement for the exit-criterion harness.
++
++Test-4 (engagement container, aegis-hypervisor:4.0.0a5 on Kali) exposed
++a second environment-parity defect the criterion verdict cannot see:
++the container kit's compose mounts ``/tmp`` as a tmpfs, Docker defaults
++tmpfs mounts to ``noexec``, and the harness placed its operator fakes
++in ``tempfile.mkdtemp()`` — i.e. on that noexec /tmp. ``os.access()``
++with ``X_OK`` fails on a noexec mount, so ``shutil.which()`` silently
++SKIPPED the fakes, the image's REAL frida/mitmdump ran instead, and
++the real frida rejected the (since-removed) ``--no-pause`` flag — a
++usage error harvested as if it were the scenario's capture, while the
++run still reported rc=0 / replay=True / slo=pass.
++
++The harness now installs the fakes into the run scratch (under OUTPUT,
++the container's exec-allowed evidence volume) and refuses LOUDLY if the
++placement is not executable. These tests pin all three sides: the
++install, the guard, and the PATH shadowing that silently broke.
++"""
++import importlib.util
++import os
++import shutil
++import subprocess
++import sys
++from pathlib import Path
++
++import pytest
++
++PROJECT = Path(__file__).resolve().parent.parent
++
++_spec = importlib.util.spec_from_file_location(
++    "run_exit_criterion", PROJECT / "scripts" / "run_exit_criterion.py")
++criterion = importlib.util.module_from_spec(_spec)
++sys.modules["run_exit_criterion"] = criterion
++_spec.loader.exec_module(criterion)
++
++
++def test_fake_battery_covers_the_operator_runtimes():
++    """The fakes exist for exactly the binaries the operator tools
++    resolve at call time (frida_hook / mitm_intercept /
++    ssh_interactive_exec + sshpass)."""
++    assert set(criterion.FAKE_BINARIES) == {
++        "frida", "mitmdump", "ssh", "sshpass"}
++
++
++def test_fakes_install_executable_and_run(tmp_path):
++    """Happy path: on an exec-allowed directory the fakes install with
++    the execute bit, pass the guard, and actually execute (the sshpass
++    fake execs its command vector — the fastest one to prove)."""
++    bindir = tmp_path / "fake-bin"
++    criterion.install_operator_fakes(bindir)          # guard inside
++    for name in criterion.FAKE_BINARIES:
++        assert os.access(bindir / name, os.X_OK), name
++    proc = subprocess.run(
++        [str(bindir / "sshpass"), "-p", "x", "echo", "ran-under-fake"],
++        capture_output=True, text=True, timeout=10)
++    assert proc.returncode == 0
++    assert proc.stdout.strip() == "ran-under-fake"
++
++
++def test_non_executable_placement_refuses_loudly(tmp_path):
++    """The exact container condition, simulated: a directory whose
++    contents fail the X_OK check (chmod 0644 stands in for what a
++    noexec mount does to os.access) must raise SystemExit naming the
++    failure mode — never fall through to running the REAL binaries."""
++    bindir = tmp_path / "noexec-ish"
++    criterion.install_operator_fakes(bindir)
++    (bindir / "frida").chmod(0o644)     # simulate the noexec X_OK miss
++    with pytest.raises(SystemExit) as ei:
++        criterion._assert_fakes_runnable(bindir)
++    msg = str(ei.value)
++    assert "frida" in msg               # names the dead fake
++    assert "noexec" in msg              # names the cause
++    assert "REAL" in msg                # names the consequence
++
++
++def test_fakes_win_path_shadowing_over_a_real_binary(
++        tmp_path, monkeypatch):
++    """The resolution site that silently broke in the container: with a
++    REAL frida installed earlier on PATH (the engagement image) and the
++    harness fakes prepended the way run_one_fake does, shutil.which
++    must resolve the FAKE — on a noexec fake dir it resolved the real
++    binary and the scripted leg stopped being the scripted leg."""
++    realbin = tmp_path / "real-bin"
++    realbin.mkdir()
++    (realbin / "frida").write_text("#!/bin/sh\necho REAL-FRIDA-RAN\n")
++    (realbin / "frida").chmod(0o755)
++    # the image's PATH: real binary reachable...
++    monkeypatch.setenv("PATH", str(realbin) + os.pathsep +
++                       os.environ.get("PATH", ""))
++    assert os.access(realbin / "frida", os.X_OK)      # a live candidate
++    # ...then the harness's scratch placement + prepend (run_one_fake):
++    fakebin = tmp_path / "scratch" / "run-4-operator-frida" / "fake-bin"
++    criterion.install_operator_fakes(fakebin)
++    monkeypatch.setenv("PATH", str(fakebin) + os.pathsep +
++                       os.environ.get("PATH", ""))
++    assert shutil.which("frida") == str(fakebin / "frida")
+diff --git a/tests/test_operator_tools.py b/tests/test_operator_tools.py
+old mode 100644
+new mode 100755
+index 07e0076..e65bfc9
+--- a/tests/test_operator_tools.py
++++ b/tests/test_operator_tools.py
+@@ -138,6 +138,53 @@ def test_frida_capture_window_harvests_and_kills(env, fakes):
+     assert "capture window closed" in res["content"]
+ 
+ 
++# A frida CLI mimic for current frida-tools: records its argv, rejects
++# the REMOVED --no-pause flag exactly like the engagement image's real
++# binary did (Test-4), otherwise streams the API-monitor battery.
++FRIDA17_MIMIC = """#!/bin/sh
++echo "$@" > "$FRIDA_ARGV_RECORD"
++for a in "$@"; do
++    if [ "$a" = "--no-pause" ]; then
++        echo "usage: frida [options] target"
++        echo "frida: error: unrecognized arguments: --no-pause"
++        exit 2
++    fi
++done
++echo '[*] API Monitor Active'
++echo '[URL] http://10.10.0.5/api/v1/login'
++sleep 30
++"""
++
++
++def test_frida_argv_omits_the_removed_no_pause_flag(
++        env, tmp_path, monkeypatch):
++    """Test-4 regression: the clean engagement container's real frida
++    (current frida-tools) rejects --no-pause outright, so the
++    oracle-era flag made every LIVE frida_hook harvest a usage error
++    instead of hooking. The argv must keep the spawn/script shape and
++    carry no --no-pause."""
++    ctx, reg, sm, ws = env
++    bindir = tmp_path / "frida17"
++    bindir.mkdir()
++    rec = tmp_path / "argv.txt"
++    p = bindir / "frida"
++    p.write_text(FRIDA17_MIMIC)
++    p.chmod(0o755)
++    monkeypatch.setenv("PATH", str(bindir) + os.pathsep +
++                       os.environ.get("PATH", ""))
++    monkeypatch.setenv("FRIDA_ARGV_RECORD", str(rec))
++    res = call(ctx, "frida_hook",
++               {"package_name": "com.lab.app",
++                "hook_type": "api_monitor", "duration": 3})
++    assert not res["is_error"]
++    assert "API Monitor Active" in res["content"]    # hooks streamed
++    assert "unrecognized arguments" not in res["content"]
++    argv = rec.read_text().split()
++    assert "--no-pause" not in argv                  # the fix
++    assert "-f" in argv and "com.lab.app" in argv    # spawn shape kept
++    assert "-l" in argv                              # script battery kept
++
++
+ def test_frida_script_battery_is_the_oracle_port(env):
+     from hypervisor.tools.vapt.operator import FRIDA_SCRIPTS
+     assert set(FRIDA_SCRIPTS) == {"ssl_pinning", "root_detect",
+-- 
+2.47.3
+

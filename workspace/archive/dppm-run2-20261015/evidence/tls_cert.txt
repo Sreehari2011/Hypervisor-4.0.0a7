@@ -1,0 +1,64 @@
+CONNECTED(00000007)
+---
+Certificate chain
+ 0 s:CN=dppmsserchhip.mizoram.gov.in
+   i:C=US, O=Let's Encrypt, CN=YE1
+   a:PKEY: EC, (prime256v1); sigalg: ecdsa-with-SHA384
+   v:NotBefore: Sep  2 11:13:33 2026 GMT; NotAfter: Dec  1 11:13:32 2026 GMT
+ 1 s:C=US, O=Let's Encrypt, CN=YE1
+   i:C=US, O=ISRG, CN=Root YE
+   a:PKEY: EC, (secp384r1); sigalg: ecdsa-with-SHA384
+   v:NotBefore: Sep  3 00:00:00 2025 GMT; NotAfter: Sep  2 23:59:59 2028 GMT
+ 2 s:C=US, O=ISRG, CN=Root YE
+   i:C=US, O=Internet Security Research Group, CN=ISRG Root X2
+   a:PKEY: EC, (secp384r1); sigalg: ecdsa-with-SHA384
+   v:NotBefore: May 13 00:00:00 2026 GMT; NotAfter: Sep  2 23:59:59 2032 GMT
+ 3 s:C=US, O=Internet Security Research Group, CN=ISRG Root X2
+   i:C=US, O=Internet Security Research Group, CN=ISRG Root X1
+   a:PKEY: EC, (secp384r1); sigalg: sha256WithRSAEncryption
+   v:NotBefore: May 13 00:00:00 2026 GMT; NotAfter: Sep  2 23:59:59 2032 GMT
+---
+Server certificate
+-----BEGIN CERTIFICATE-----
+MIIDpTCCAyugAwIBAgISBizUU+LmlZ2kPIfF4j/5eXuaMAoGCCqGSM49BAMDMDMx
+CzAJBgNVBAYTAlVTMRYwFAYDVQQKEw1MZXQncyBFbmNyeXB0MQwwCgYDVQQDEwNZ
+RTEwHhcNMjYwOTAyMTExMzMzWhcNMjYxMjAxMTExMzMyWjAnMSUwIwYDVQQDExxk
+cHBtc3NlcmNoaGlwLm1pem9yYW0uZ292LmluMFkwEwYHKoZIzj0CAQYIKoZIzj0D
+AQcDQgAEx1YWsnNnW3ZycFEUU5o1w2kef76ONqAUlKjjeoBxhPBke5GcczDAdXpK
+pw2YFVPKbVGJMewmH2NgPI+bTfVWJqOCAikwggIlMA4GA1UdDwEB/wQEAwIHgDAT
+BgNVHSUEDDAKBggrBgEFBQcDATAMBgNVHRMBAf8EAjAAMB0GA1UdDgQWBBSnx1AG
+SqKJ9F6yRhwIsrfMnEF2BjAfBgNVHSMEGDAWgBS7IMpHC/7X5Zz5jwkqo4w3RbG8
+2DAzBggrBgEFBQcBAQQnMCUwIwYIKwYBBQUHMAKGF2h0dHA6Ly95ZTEuaS5sZW5j
+ci5vcmcvMCcGA1UdEQQgMB6CHGRwcG1zc2VyY2hoaXAubWl6b3JhbS5nb3YuaW4w
+EwYDVR0gBAwwCjAIBgZngQwBAgEwLgYDVR0fBCcwJTAjoCGgH4YdaHR0cDovL3ll
+MS5jLmxlbmNyLm9yZy8yNy5jcmwwggELBgorBgEEAdZ5AgQCBIH8BIH5APcAfQCo
+JsvjCsY1EkZTP+Bl8U8Z2W4ZCBPEHdlteQCzEjxVJwAAAaBiCJW2AAgAAAUAKqqW
+twQDAEYwRAIgRr8YXJNNNh3bwKFQtKfj+0Zei88KX/nsNTHCqU1dTnECIFqs8pEE
+hhVd6gMMMMqDB9sTuqyWY8ZtVvPf3KbRgaWKAHYAyKPEf8ezrbk1awE/anoSbeM6
+TkOlxkb5l605dZkdz5oAAAGgYgiSAQAABAMARzBFAiEAgsslUe5XPYpET5axAt1g
+4rQ9A0HlpSxcxwklcdlQ6RcCIBeVqF52P0dfylxedHgwzIEUq2wwdrZbuwnokd5J
+oLuuMAoGCCqGSM49BAMDA2gAMGUCMQDGij7He3h0GWz86+nE+f6xDeIIwGlD3oRk
+s+DB5HFfctYUNdBgileh/38+V2deAHACMHfxXIpH2BBq8fx1YXAga75Al+aJooSR
+do3bAx7HUQByVqB6k/mjpJagQXqeGR4eSQ==
+-----END CERTIFICATE-----
+subject=CN=dppmsserchhip.mizoram.gov.in
+issuer=C=US, O=Let's Encrypt, CN=YE1
+---
+No client certificate CA names sent
+Peer signing digest: SHA256
+Peer signature type: ecdsa_secp256r1_sha256
+Peer Temp Key: X25519, 253 bits
+---
+SSL handshake has read 3804 bytes and written 1775 bytes
+Verification: OK
+---
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+Protocol: TLSv1.3
+Server public key is 256 bit
+This TLS version forbids renegotiation.
+Compression: NONE
+Expansion: NONE
+No ALPN negotiated
+Early data was not sent
+Verify return code: 0 (ok)
+---

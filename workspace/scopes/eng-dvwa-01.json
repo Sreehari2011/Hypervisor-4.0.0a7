@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "engagement_id": "ENG-01-DVWA-FULL",
+  "mode": "strict",
+  "targets": [
+    {
+      "target": "10.31.0.87",
+      "type": "ip",
+      "ports": [],
+      "protocols": [
+        "tcp",
+        "udp",
+        "http",
+        "https"
+      ],
+      "authorized": true,
+      "authorization_token": "Operator-owned lab host (user1@vts-scanner) hosting DVWA for full-capability exploitation testing; internal authorization ENG-01-DVWA-FULL dated 2026-10-16; window 2026-10-16 to 2026-11-15 IST",
+      "expires_at": 1794767399
+    }
+  ],
+  "excludes": [],
+  "roe": {
+    "poc_only": false,
+    "allow_persistent_payloads": true,
+    "destructive_allowed": false
+  },
+  "authorization": {
+    "signed_sha256": "a51b16899808f252ef27bbafb89101fae8fefbd484d3d64bf023071ee2fb5640"
+  }
+}

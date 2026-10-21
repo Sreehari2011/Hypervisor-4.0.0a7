@@ -1,0 +1,1 @@
+# Nmap 7.991 scan initiated Thu Oct 15 05:36:00 2026 as: /usr/lib/nmap/nmap --privileged -sT -sV -p 22,53,80,443,5060,8080 --max-rate 64 -T2 -oN evidence/nmap_sv_open_ports.txt dppmsserchhip.mizoram.gov.in

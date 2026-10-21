@@ -1,0 +1,311 @@
+diff --git a/hypervisor/adapters/openai.py b/hypervisor/adapters/openai.py
+old mode 100644
+new mode 100755
+index 6e7ed2b..94e802c
+--- a/hypervisor/adapters/openai.py
++++ b/hypervisor/adapters/openai.py
+@@ -237,7 +237,21 @@ class OpenAICompatClient:
+ 
+     def _http(self) -> Any:
+         if self._client is None:
+-            import httpx  # optional at import time; required at call time
++            try:
++                import httpx  # optional at import time; required at call time
++            except ImportError as exc:
++                # Refuse honestly (platform discipline): a missing
++                # transport is an environment defect, not a model error.
++                # Test-4's clean engagement container caught exactly this
++                # — the image shipped without the undeclared dependency
++                # and the first model call died here.
++                raise RuntimeError(
++                    "adapter transport missing: httpx is required at "
++                    "call time (OpenAICompatClient._http) but not "
++                    "installed in this interpreter — every model call "
++                    "will fail. Fix: pip install 'httpx>=0.27' on this "
++                    "host (or rebuild the engagement image); the doctor "
++                    "check 'adapter transport: httpx' reports this") from exc
+             timeout = self._timeout
+             if timeout is None:
+                 # Guard line-1 defaults: a dead peer dies at the transport
+diff --git a/hypervisor/doctor.py b/hypervisor/doctor.py
+old mode 100644
+new mode 100755
+index 381d5ce..8f87f8d
+--- a/hypervisor/doctor.py
++++ b/hypervisor/doctor.py
+@@ -5,8 +5,8 @@ cutover: version + environment, endpoint reachability (when
+ configured), registry composition (platform / VAPT / operator /
+ task), operator runtime attachments (frida / mitmdump / ssh /
+ sshpass / nmap), journal/replay tooling importability, and the
+-stdlib-only dependency contract. Exit 0 = host ready; every failure
+-prints its remediation.
++declared-dependency contract (stdlib core + the adapter transport).
++Exit 0 = host ready; every failure prints its remediation.
+ 
+ python -m hypervisor.cli --doctor
+ """
+@@ -14,8 +14,10 @@ from __future__ import annotations
+ 
+ import importlib
+ import os
++import re
+ import shutil
+ import sys
++import tomllib
+ from typing import Any, Dict, List
+ 
+ CHECKS: List[Dict[str, Any]] = []
+@@ -35,26 +37,53 @@ def run_doctor() -> int:
+            f"{py.major}.{py.minor}.{py.micro}",
+            "upgrade to Python 3.11+")
+ 
+-    # ── the stdlib-only contract ──────────────────────────────────
++    # ── the dependency contract ────────────────────────────────────────────────────────────
++    # P0 discipline: stdlib-only runtime with ONE declared exception —
++    # the P1 adapter's transport (httpx, imported lazily at call time
++    # inside OpenAICompatClient._http). Test-4's clean container caught
++    # the declaration gap: pyproject still said dependencies = [] while
++    # the adapter required httpx; the old check grepped for that literal
++    # string and the endpoint probe rode urllib — a green doctor whose
++    # every model call died on import.
+     try:
+         proj = importlib.import_module("hypervisor")
+         init = os.path.dirname(proj.__file__) if proj.__file__ else ""
+         pyproject = os.path.join(os.path.dirname(init), "pyproject.toml")
+-        deps_line = ""
++        deps: List[str] = []
+         if os.path.isfile(pyproject):
+-            with open(pyproject, "r", encoding="utf-8") as f:
+-                in_deps = False
+-                for line in f:
+-                    if line.strip() == "dependencies = []":
+-                        deps_line = "dependencies = []"
+-                        break
+-        _check("stdlib-only runtime", deps_line == "dependencies = []",
+-               "dependencies = []" if deps_line else "dependency contract "
+-               "not found in pyproject.toml",
+-               "keep the runtime stdlib-only (operator attachments "
+-               "probe binaries at call time, they are not dependencies)")
++            with open(pyproject, "rb") as f:
++                deps = list(tomllib.load(f)
++                            .get("project", {}).get("dependencies", []))
++        found: List[str] = []
++        missing: List[str] = []
++        for dep in deps:
++            m = re.match(r"[A-Za-z0-9_.\-]+", dep.strip())
++            top = m.group(0) if m else dep.strip()
++            try:
++                mod = importlib.import_module(top)
++                found.append(f"{top} {getattr(mod, '__version__', '?')}")
++            except Exception:
++                missing.append(top)
++        detail = ", ".join(found) if found else "none declared"
++        if missing:
++            detail += f" — MISSING: {', '.join(missing)}"
++        _check("declared runtime deps", not missing, detail,
++               "install the declared dependencies (pip install -e . on "
++               "the workstation, or rebuild the engagement image)")
+     except Exception as exc:
+-        _check("stdlib-only runtime", False, str(exc)[:80], "")
++        _check("declared runtime deps", False, str(exc)[:80], "")
++
++    # The adapter's transport is load-bearing for EVERY model call —
++    # verified explicitly, declaration or not, so no image can ship
++    # green-but-dead again (the Test-4 lesson). Blocking on failure.
++    try:
++        import httpx
++        _check("adapter transport: httpx", True, httpx.__version__, "")
++    except Exception:
++        _check("adapter transport: httpx", False,
++               "not importable — every model call will refuse honestly",
++               "pip install 'httpx>=0.27' on the engagement host "
++               "(or rebuild the engagement image)")
+ 
+     # ── the model endpoint ────────────────────────────────────────
+     base_url = os.environ.get("AEGIS_OPENAI_BASE_URL", "").strip()
+diff --git a/pyproject.toml b/pyproject.toml
+old mode 100644
+new mode 100755
+index c305ac0..de1040a
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -10,10 +10,13 @@ readme = "README.md"
+ requires-python = ">=3.11"
+ license = { text = "Proprietary" }
+ authors = [{ name = "AEGIS Platform Team" }]
+-# P0 discipline: stdlib-only at runtime. The debug kit's httpx/requests
+-# patches are optional guarded imports; the adapter (P1) will add the
+-# OpenAI-compatible client dependency when it lands.
+-dependencies = []
++# P0 discipline: stdlib-only at runtime, with ONE declared exception —
++# the P1 adapter's OpenAI-compatible transport (httpx, imported lazily
++# at call time inside OpenAICompatClient._http). Test-4's clean
++# engagement container caught the declaration gap when the first model
++# call died inside _http(); the debug kit's httpx/requests patches stay
++# optional guarded imports.
++dependencies = ["httpx>=0.27"]
+ 
+ [project.optional-dependencies]
+ dev = ["pytest>=8"]
+diff --git a/tests/test_adapter_transport.py b/tests/test_adapter_transport.py
+new file mode 100644
+index 0000000..8103a10
+--- /dev/null
++++ b/tests/test_adapter_transport.py
+@@ -0,0 +1,99 @@
++"""P1 transport declaration — the Test-4 container regression.
++
++The engagement container (clean Kali image, no pip site-packages) died
++on the FIRST model call: ``import httpx`` inside
++``OpenAICompatClient._http`` raised ModuleNotFoundError because httpx
++was never declared — pyproject said ``dependencies = []`` ("the adapter
++(P1) will add the OpenAI-compatible client dependency when it lands")
++and the doctor's stdlib-only check grepped for that literal string,
++so every environment with httpx lying around (workstation, dev venv)
++hid the gap. These tests pin all three layers of the fix:
++
++1. pyproject DECLARES the transport (clean installs get it),
++2. the adapter REFUSES HONESTLY with an actionable message when the
++   transport is missing (platform discipline: environment defects are
++   reported, not crashed),
++3. the doctor CATCHES it (real declared-deps parse + an explicit,
++   blocking adapter-transport check) so no image ships green-but-dead.
++"""
++import os
++import subprocess
++import sys
++import tomllib
++from pathlib import Path
++
++import pytest
++
++PROJECT = Path(__file__).resolve().parent.parent
++
++
++# ── 1. the declaration ────────────────────────────────────────────────
++
++def test_pyproject_declares_the_adapter_transport():
++    deps = tomllib.loads(
++        (PROJECT / "pyproject.toml").read_text(encoding="utf-8")
++    )["project"]["dependencies"]
++    assert any(d.strip().startswith("httpx") for d in deps), (
++        "adapters/openai.py rides httpx at call time (lazy import inside "
++        "OpenAICompatClient._http); it MUST be declared in pyproject or "
++        "clean environments die on the first model call (Test-4 container)")
++
++
++# ── 2. honest refusal ─────────────────────────────────────────────────
++
++def test_missing_transport_refuses_honestly(monkeypatch):
++    """A missing transport must raise an actionable RuntimeError naming
++    the fix — not a raw ModuleNotFoundError from inside the client
++    factory (Test-4: the first model call died at import httpx)."""
++    from hypervisor.adapters.openai import OpenAICompatClient
++    # None in sys.modules makes the lazy `import httpx` raise ImportError
++    monkeypatch.setitem(sys.modules, "httpx", None)
++    client = OpenAICompatClient(
++        base_url="http://127.0.0.1:9/v1", api_key="k",
++        model="cisai-ultra", fallback_model="")
++    with pytest.raises(RuntimeError) as ei:
++        client._http()
++    msg = str(ei.value)
++    assert "adapter transport missing" in msg
++    assert "httpx>=0.27" in msg          # the remediation
++    assert "doctor" in msg               # points at the doctor check
++    assert ei.value.__cause__ is not None  # chained to the ImportError
++
++
++# ── 3. the doctor catches it ──────────────────────────────────────────
++
++def _doctor_subprocess(block_httpx: bool):
++    code = "import sys\n"
++    if block_httpx:
++        code += "sys.modules['httpx'] = None\n"  # simulate clean container
++    code += ("from hypervisor.doctor import run_doctor\n"
++             "sys.exit(run_doctor())\n")
++    env = {k: v for k, v in os.environ.items()
++           if not k.startswith("AEGIS_")}
++    env["PYTHONPATH"] = str(PROJECT)
++    return subprocess.run(
++        [sys.executable, "-c", code], cwd=str(PROJECT), env=env,
++        capture_output=True, text=True, timeout=180)
++
++
++def test_doctor_blocks_on_missing_transport():
++    """The exact condition that shipped green-but-dead in the first
++    Test-4 image: transport missing -> doctor FAILS with its fix line
++    and exits 1 (blocking — the host is NOT ready)."""
++    proc = _doctor_subprocess(block_httpx=True)
++    out = proc.stdout
++    assert "[FAIL] adapter transport: httpx" in out
++    assert "pip install 'httpx>=0.27'" in out     # remediation printed
++    assert "MISSING: httpx" in out                # declared-deps check too
++    assert proc.returncode == 1
++
++
++def test_doctor_green_with_transport_declared():
++    """Healthy environment: both new checks render [OK] and the doctor
++    still exits 0 without an endpoint configured (soft check)."""
++    proc = _doctor_subprocess(block_httpx=False)
++    out = proc.stdout
++    assert "[OK ] declared runtime deps" in out
++    assert "httpx" in out
++    assert "[OK ] adapter transport: httpx" in out
++    assert proc.returncode == 0
+diff --git a/tests/test_slo.py b/tests/test_slo.py
+old mode 100644
+new mode 100755
+index 4787bd1..1c2690d
+--- a/tests/test_slo.py
++++ b/tests/test_slo.py
+@@ -186,7 +186,8 @@ def test_doctor_renders_and_exits(capsys, monkeypatch):
+     assert "AEGIS Hypervisor doctor" in out
+     # without an endpoint configured the doctor still passes (the
+     # endpoint is a soft check); blocking failures only for the hard
+-    # contract (imports, registry, stdlib-only)
++    # contract (imports, registry, declared deps + adapter transport)
+     assert rc == 0
+     assert "registry: operator attachments" in out
+-    assert "stdlib-only runtime" in out
++    assert "declared runtime deps" in out
++    assert "[OK ] adapter transport: httpx" in out
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -15,8 +15,11 @@
+ #     docker images --digests | grep kali-rolling
+ #     FROM kalilinux/kali-rolling@sha256:<your-verified-RepoDigest>
+ #
+-# Core is STDLIB-ONLY (doctor: "dependencies = []") — no pip layer for the
+-# hypervisor itself. Doctor-required runtimes provisioned below:
++# Core is stdlib-plus-one: the SOLE declared runtime dependency is the
++# adapter's httpx transport (pyproject: dependencies = ["httpx>=0.27"],
++# imported lazily at call time inside OpenAICompatClient._http — Test-4
++# caught it when the clean image died on the first model call).
++# Doctor-required runtimes provisioned below:
+ #   ssh (openssh-client) / sshpass / nmap / mitmdump (mitmproxy) / frida-tools
+ # =============================================================================
+ 
+@@ -24,7 +27,7 @@
+ 
+ LABEL org.opencontainers.image.title="AEGIS Hypervisor 4.0 engagement runtime" \
+       org.opencontainers.image.version="4.0.0a5" \
+-      org.opencontainers.image.description="Stdlib-only hypervisor + VAPT arsenal — exit-criterion test bed" \
++      org.opencontainers.image.description="Stdlib-plus-one hypervisor (httpx transport) + VAPT arsenal — exit-criterion test bed" \
+       org.opencontainers.image.base.name="kalilinux/kali-rolling" \
+       com.aegis.verified-build.sha256="d0b8b1b4ce6a07f4974852afb93c9fee6daa2a3182cf6c105defa47c63d71047" \
+       com.aegis.verified-build.note="Test-3 exit criterion PASS (10/10 scripted + 10/10 real) stack fingerprint"
+@@ -58,6 +61,14 @@
+      pip3 install --break-system-packages frida-tools) && \
+     apt-get clean && rm -rf /var/lib/apt/lists/*
+ 
++# --- 2b. Adapter transport — the engine's ONE declared runtime dep ----------
++# hypervisor/adapters/openai.py rides httpx (lazy import at call time
++# inside OpenAICompatClient._http); pyproject declares it. Test-4's clean
++# container caught the undeclared-dependency gap when the first model
++# call died inside _http() — the doctor now blocks on this (check:
++# 'adapter transport: httpx').
++RUN pip3 install --break-system-packages "httpx>=0.27"
++
+ # --- 3. Proxychains egress via engagement SOCKS5 relay -------------------------
+ # CREDENTIALS STRIPPED from this shared kit — restore before building
+ # (README.md, "Restore credentials"), or mount proxychains4.conf at runtime

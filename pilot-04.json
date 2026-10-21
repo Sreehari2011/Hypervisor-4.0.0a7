@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "engagement_id": "PILOT-04-INNSPARK",
+  "mode": "strict",
+  "targets": [
+    {
+      "target": "innspark.in",
+      "type": "domain",
+      "ports": [],
+      "protocols": [
+        "tcp",
+        "udp",
+        "http",
+        "https"
+      ],
+      "authorized": true,
+      "authorization_token": "PILOT-04/2026-10-13/SELF-OWNED",
+      "expires_at": null
+    },
+    {
+      "target": "www.innspark.in",
+      "type": "domain",
+      "ports": [],
+      "protocols": [
+        "tcp",
+        "udp",
+        "http",
+        "https"
+      ],
+      "authorized": true,
+      "authorization_token": "PILOT-04/2026-10-13/SELF-OWNED",
+      "expires_at": null
+    }
+  ],
+  "excludes": [],
+  "roe": {
+    "poc_only": true,
+    "allow_persistent_payloads": false,
+    "destructive_allowed": false
+  },
+  "authorization": {
+    "signed_sha256": "56fde56e69133437e6ab090d545b4d9f35f62f245212c551c0b62eacc75c1fd1"
+  }
+}

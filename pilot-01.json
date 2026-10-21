@@ -1,0 +1,20 @@
+{
+  "mode": "strict",
+  "targets": [
+    {
+      "target": "10.10.0.5",
+      "type": "ip",
+      "ports": [22, 80, 443],
+      "protocols": ["tcp", "http", "https"],
+      "authorized": true,
+      "authorization_token": "PILOT-01/2026-10-12/REPLACE-WITH-YOUR-AUTHORIZATION-REFERENCE",
+      "expires_at": null
+    }
+  ],
+  "excludes": [],
+  "roe": {
+    "poc_only": true,
+    "allow_persistent_payloads": false,
+    "destructive_allowed": false
+  }
+}

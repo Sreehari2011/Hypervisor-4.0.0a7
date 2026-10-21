@@ -1,0 +1,38 @@
+PILOT-01  TCP connect-state diagnostic :: target 10.10.0.5
+scope fingerprint: sha256:d827a996ee201aca@v1
+method: bash /dev/tcp connect with timeout, curl HEAD, ICMP ping, route inspection
+
+PORT STATE RESULTS (8s SYN timeout each)
+  port 80  : rc=124 SYN-timeout after ~8000ms  -> FILTERED (host silent)
+  port 443 : rc=124 SYN-timeout after ~8000ms  -> FILTERED (host silent)
+  port 22  : rc=124 SYN-timeout after ~8000ms  -> FILTERED (host silent)
+
+APPLICATION-LEVEL PROBES
+  curl http://10.10.0.5/   -> exit 28 (timeout), http_code=000
+  curl https://10.10.0.5/  -> exit 28 (timeout), http_code=000
+  ping -c2 -W2 10.10.0.5   -> 2 sent, 0 received, 100% packet loss
+
+TOOLING NOTES
+  nmap -> /usr/lib/nmap/nmap exec: "Operation not permitted"
+          running uid=1000(aegis) with no CAP_NET_RAW, so nmap's SYN-scan
+          path cannot execute; fell back to full-connect probes (equivalent
+          to nmap -sT)
+
+HOST/ROUTE BASELINE
+  local interface : eth0  inet 172.20.0.3  (prefix /16, brd 172.20.255.255)
+  default route   : via 172.20.0.1 dev eth0
+  local subnet    : 172.20.0.0 (prefix /16) dev eth0 scope link
+  *** NO route entry exists for the 10.10.0.0 supernet on this pod ***
+
+INTERPRETATION
+  Packets to 10.10.0.5 are forwarded to the default gateway 172.20.0.1 and
+  dropped (no return path / no host route). The target subnet is not routed
+  from this workspace pod. Simultaneous silent SYN-timeout on all three
+  authorized ports plus 100% ICMP loss is consistent with the host being
+  firewalled/offline/unreachable rather than selectively closed (a live
+  open-tcp host would RST the closed ports quickly).
+
+CONCLUSION
+  No banner, service, version, or patch-level data could be collected.
+  Enumeration of 10.10.0.5 ports 22/80/443 is BLOCKED BY NETWORK
+  UNREACHABLE/FILTERED STATE, not by any tool or scope denial.

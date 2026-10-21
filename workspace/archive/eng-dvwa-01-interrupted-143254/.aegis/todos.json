@@ -1,0 +1,100 @@
+{
+  "todos": [
+    {
+      "id": "P1-recon",
+      "content": "Phase 1: Recon \u2014 fingerprint stack, crawl, enumerate modules, session mechanics, nmap host 10.31.0.87",
+      "status": "in_progress",
+      "priority": "high"
+    },
+    {
+      "id": "P1-auth",
+      "content": "Obtain authenticated access (default creds / brute force / bypass)",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "P2-plan",
+      "content": "Phase 2: Hypothesis ledger + attack tree per module/level",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "P3-sqli",
+      "content": "SQLi testing (error/bool/time/UNION + blind module) at Low/Med/High",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "P3-xss",
+      "content": "XSS reflected/stored/DOM at all levels",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "P3-cmdi",
+      "content": "Command injection at all levels",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "P3-lfi",
+      "content": "LFI/RFI/path traversal at all levels",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "P3-upload",
+      "content": "File upload + web shell execution at all levels",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "P3-csrf",
+      "content": "CSRF on all state-changing endpoints",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "P3-auth-sess",
+      "content": "Auth & session: brute force, fixation, credential reuse, weak session ids",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "P3-misconfig",
+      "content": "Misconfig/info disclosure (setup.php, phpinfo, .git, headers)",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "P3-logic",
+      "content": "Business logic & race conditions",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "P3-additional",
+      "content": "XXE/SSRF/deserialization/open redirect/API gaps where surface exists",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "P4-novel",
+      "content": "Novel-bug hunting: differential analysis, sibling sweep, invariants",
+      "status": "pending",
+      "priority": "medium"
+    },
+    {
+      "id": "P6-chain",
+      "content": "Chaining: SQLi->creds, upload->RCE->config->DB, cmdi->host, port reuse",
+      "status": "pending",
+      "priority": "high"
+    },
+    {
+      "id": "P7-report",
+      "content": "final_report.json + compile_report + exec summary",
+      "status": "pending",
+      "priority": "high"
+    }
+  ]
+}

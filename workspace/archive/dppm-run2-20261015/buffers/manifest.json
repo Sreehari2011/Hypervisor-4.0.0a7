@@ -1,0 +1,9 @@
+[
+  {
+    "buffer_id": "54bb7227",
+    "tool": "run_command",
+    "label": "openssl s_client -connect dppmsserchhip.mizoram.gov.in:443 -servername dppmsserchhip.mizoram.gov.in </dev/null 2>/dev/nu",
+    "timestamp": "2026-10-15T05:13:13",
+    "chars": 80738
+  }
+]

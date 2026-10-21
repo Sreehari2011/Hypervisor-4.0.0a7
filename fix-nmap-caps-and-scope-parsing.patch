@@ -1,0 +1,503 @@
+From 964e27f3ec97204eee4d0ebb2cc55fe1ebc7d0aa Mon Sep 17 00:00:00 2001
+From: AEGIS Platform Team <aegis-ops@localhost>
+Date: Mon, 12 Oct 2026 12:03:18 +0000
+Subject: [PATCH] P4 runtime caps + command-target parsing: survive the capped
+ engagement container (PILOT-02 rounds)
+
+Two engagement-container findings from the first completed live
+run (PILOT-02, replay OK / SLO 7/7 PASS):
+
+#4 nmap present but NOT EXECUTABLE (EPERM for every user, root
+   included). Root cause: Kali ships /usr/lib/nmap/nmap with file
+   caps cap_net_bind_service,cap_net_admin,cap_net_raw; the compose
+   cap_drop:ALL + cap_add:NET_RAW,NET_ADMIN leaves cap_net_bind_service
+   outside the process bounding set, and execve refuses any binary
+   whose file caps exceed it (the sh wrapper surfaces rc=127
+   "Operation not permitted"). Fixes: compose cap_add gains
+   NET_BIND_SERVICE; the Dockerfile normalizes the binary to
+   cap_net_admin,cap_net_raw=eip (step 1b; libcap2-bin joins the apt
+   set); doctor probe-execs every runtime attachment so a
+   present-but-dead binary can never pass pre-flight silently again
+   (soft WARN, matching the optional-runtime doctrine). The
+   no-new-privileges comment now warns that enabling it would block
+   file-cap acquisition at exec.
+
+#5 scope-parser false positives denied 6 in-scope-intent commands in
+   PILOT-02 (the model worked around each within a turn).
+   extract_targets_from_command now: (a) drops IP/nnn tokens not in
+   argument position (URL/path suffixes -- "curl http://10.10.0.5/22":
+   the host still gates via the URL/bare-IP tokens); (b) drops IP/nnn
+   suffixes over 32 (never a prefix length -- host/port or path
+   notation); (c) keeps argument-position CIDRs STRICT, sloppy
+   host-bits-set notation included ("nmap 10.10.0.5/22" is
+   network-scan intent under nmap semantics -- deny-by-default wins);
+   (d) skips domain-shaped tokens in path position ("python3
+   ws/probe.py", "nmap -iL /tmp/hosts.txt"); (e) extends
+   _CODE_ATTR_SUFFIXES with exception attrs (socket.timeout) and
+   never-delegated file extensions -- deliberately NOT py/sh/md (real
+   ccTLDs: bare host targets stay gated).
+
+Security posture: both fixes tighten or preserve deny-by-default; the
+only loosened behaviors are the two demonstrated false-positive shapes,
+where the actual connection target continues to be gated by its own
+extracted token. tests/test_permissions.py +9, tests/test_doctor.py
+new (6).
+---
+ Dockerfile                | 15 ++++++-
+ docker-compose.yaml       | 13 +++++-
+ hypervisor/doctor.py      | 59 ++++++++++++++++++++++--
+ hypervisor/permissions.py | 68 +++++++++++++++++++++++++---
+ tests/test_doctor.py      | 94 +++++++++++++++++++++++++++++++++++++++
+ tests/test_permissions.py | 79 ++++++++++++++++++++++++++++++++
+ 6 files changed, 316 insertions(+), 12 deletions(-)
+ create mode 100644 tests/test_doctor.py
+
+diff --git a/Dockerfile b/Dockerfile
+index 35139b7..6d05981 100755
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -38,7 +38,7 @@ ENV PYTHONUNBUFFERED=1
+ # --- 1. System deps + VAPT arsenal (apt only, no pip) --------------------------
+ RUN apt-get update && \
+     apt-get install -y --no-install-recommends \
+-    ca-certificates curl wget git zsh jq \
++    ca-certificates curl wget git zsh jq libcap2-bin \
+     python3 python3-pip \
+     iproute2 iputils-ping net-tools dnsutils \
+     nmap masscan nikto sqlmap hydra \
+@@ -53,6 +53,19 @@ RUN apt-get update && \
+     mitmproxy \
+     && apt-get clean && rm -rf /var/lib/apt/lists/*
+ 
++# --- 1b. nmap file-cap normalization ---------------------------------------
++# Kali ships /usr/lib/nmap/nmap with file caps
++# cap_net_bind_service,cap_net_admin,cap_net_raw. This container runs
++# cap_drop:ALL + cap_add:NET_RAW,NET_ADMIN — when ANY file capability
++# sits outside the process bounding set, execve refuses with EPERM for
++# every user (root included; the /usr/bin/nmap sh wrapper surfaces it
++# as rc=127 "Operation not permitted" — the PILOT-02 finding).
++# Normalize the binary to exactly the two caps the engagement compose
++# grants, so it execs and the unprivileged aegis user re-gains raw
++# sockets at exec time. The compose NET_BIND_SERVICE cap_add is the
++# belt-and-braces path; either alone unblocks nmap.
++RUN setcap cap_net_admin,cap_net_raw=eip /usr/lib/nmap/nmap
++
+ # --- 2. frida for frida_hook (mobile dynamic instrumentation) ------------------
+ # Keep the container's frida client version in sync with the frida-server you
+ # push to targets — mismatched versions are the #1 cause of attach failures.
+diff --git a/docker-compose.yaml b/docker-compose.yaml
+index 1c9a8df..9c577a8 100755
+--- a/docker-compose.yaml
++++ b/docker-compose.yaml
+@@ -15,6 +15,13 @@ services:
+     cap_add:
+       - NET_RAW       # nmap/masscan raw sockets
+       - NET_ADMIN     # interface/arp manipulation
++      # Kali binaries ship file caps (nmap: cap_net_bind_service,
++      # cap_net_admin, cap_net_raw); execve refuses with EPERM — for
++      # every user, root included — when a file capability sits outside
++      # the bounding set that cap_drop:ALL + this list builds. Keep the
++      # set covering every file-capped runtime (kit Dockerfile step 1b
++      # also normalizes nmap to NET_ADMIN+NET_RAW as belt-and-braces).
++      - NET_BIND_SERVICE
+       # - SYS_PTRACE  # uncomment ONLY for local-process frida instrumentation
+     networks:
+       - aegis_mesh
+@@ -37,7 +44,11 @@ services:
+     tty: true
+     restart: "no"
+     # security_opt:
+-    #   - no-new-privileges:true
++    #   - no-new-privileges:true   # WARNING: no_new_privs blocks
++    #                              # file-cap acquisition at exec — the
++    #                              # file-capped runtimes (nmap) stop
++    #                              # working. Do not enable alongside
++    #                              # the cap_add file-cap design.
+ 
+ networks:
+   aegis_mesh:
+diff --git a/hypervisor/doctor.py b/hypervisor/doctor.py
+index 8f87f8d..093755a 100755
+--- a/hypervisor/doctor.py
++++ b/hypervisor/doctor.py
+@@ -16,6 +16,7 @@ import importlib
+ import os
+ import re
+ import shutil
++import subprocess
+ import sys
+ import tomllib
+ from typing import Any, Dict, List
+@@ -28,6 +29,43 @@ def _check(name: str, ok: bool, detail: str, fix: str = "") -> None:
+                    "fix": fix})
+ 
+ 
++_VERSION_FLAG = {
++    "frida": "--version", "mitmdump": "--version", "ssh": "-V",
++    "nmap": "--version", "sshpass": None,   # bare usage is the probe
++}
++
++_CAPS_FIX = ("compose cap_add must cover EVERY file capability on the "
++             "binary (Kali nmap: add NET_BIND_SERVICE), or setcap the "
++             "binary to the granted set (kit Dockerfile step 1b)")
++
++
++def _probe_exec(path: str, flag) -> tuple:
++    """Exec-probe a runtime attachment: any completed invocation that is
++    not a shell cannot-execute (rc 126/127) or EPERM proves the binary
++    runs; the version output itself is irrelevant. Returns (ok, detail,
++    fix). PILOT-02: nmap was present yet dead for every user — file
++    caps outside the container bounding set refuse execve outright."""
++    argv = [path] + ([flag] if flag else [])
++    try:
++        proc = subprocess.run(argv, capture_output=True, timeout=20)
++    except PermissionError:
++        return False, (f"{path} present but NOT EXECUTABLE (EPERM) — "
++                       f"file caps outside the container bounding set?"), \
++            _CAPS_FIX
++    except subprocess.TimeoutExpired:
++        return True, f"{path} (exec ok; version probe slow)", ""
++    except OSError as exc:
++        return False, f"{path}: {type(exc).__name__}: {str(exc)[:60]}", ""
++    text = ((proc.stderr or b"") + (proc.stdout or b"")).decode(
++        "utf-8", "replace")
++    if proc.returncode in (126, 127) or \
++            "operation not permitted" in text.lower():
++        return False, (f"{path} present but NOT EXECUTABLE "
++                       f"(rc={proc.returncode}) — file caps outside "
++                       f"the container bounding set?"), _CAPS_FIX
++    return True, f"{path} (exec ok)", ""
++
++
+ def run_doctor() -> int:
+     from . import __version__
+     print(f"AEGIS Hypervisor doctor — pre-flight for cutover")
+@@ -139,6 +177,15 @@ def run_doctor() -> int:
+                f"{type(exc).__name__}: {str(exc)[:80]}", "")
+ 
+     # ── operator runtime attachments ──────────────────────────────
++    # Presence is not executability. The engagement container drops
++    # ALL capabilities and re-adds a subset; any file-capped binary
++    # whose cap set exceeds the container bounding set (Kali's nmap
++    # ships cap_net_bind_service,cap_net_admin,cap_net_raw) then fails
++    # execve with EPERM — for every user, root included — and the sh
++    # wrapper surfaces it as rc=127 "Operation not permitted". The
++    # PILOT-02 engagement hit exactly this on nmap. Probe-exec each
++    # attachment so the pre-flight says it up front instead of the
++    # first mid-engagement network_scan_nmap call.
+     for binary, what in (
+             ("frida", "frida_hook (mobile dynamic instrumentation)"),
+             ("mitmdump", "mitm_intercept (traffic capture)"),
+@@ -146,10 +193,14 @@ def run_doctor() -> int:
+             ("sshpass", "ssh_interactive_exec password auth (optional)"),
+             ("nmap", "network_scan_nmap (port/service scanning)")):
+         path = shutil.which(binary)
+-        _check(f"runtime: {binary}", path is not None,
+-               path or f"not on PATH — {what} will refuse honestly",
+-               f"install {binary} on the engagement host" +
+-               (" (optional)" if "optional" in what else ""))
++        if path is None:
++            _check(f"runtime: {binary}", False,
++                   f"not on PATH — {what} will refuse honestly",
++                   f"install {binary} on the engagement host" +
++                   (" (optional)" if "optional" in what else ""))
++            continue
++        ok, detail, fix = _probe_exec(path, _VERSION_FLAG.get(binary))
++        _check(f"runtime: {binary}", ok, detail, fix)
+ 
+     # ── the persist/verify plane ──────────────────────────────────
+     for mod in ("hypervisor.persist.replay", "hypervisor.debug.slo",
+diff --git a/hypervisor/permissions.py b/hypervisor/permissions.py
+index 290d63f..b3e6278 100644
+--- a/hypervisor/permissions.py
++++ b/hypervisor/permissions.py
+@@ -584,10 +584,17 @@ _CIDR_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}/\d{1,2}\b')
+ _DOMAIN_FALSE_POSITIVES = frozenset({
+     "example.com", "test.com", "localhost", "w3.org", "schema.org"})
+ 
+-# Dotted tokens whose final label is a common code attribute are not
+-# hostnames ("subprocess.run", "os.path", "time.sleep" — the 4.0 exec
+-# tools run command-target extraction over CODE TEXT, where these
+-# idioms are ubiquitous). A curated attr set, not a TLD oracle.
++# Dotted tokens whose final label is a common code attribute or a
++# never-delegated file extension are not hostnames ("subprocess.run",
++# "os.path", "socket.timeout", "results.txt" — the 4.0 exec tools run
++# command-target extraction over CODE TEXT and tool output, where
++# these idioms are ubiquitous). A curated attr set, not a TLD oracle.
++# PILOT-02 additions: exception/message attrs ("socket.timeout" denied
++# a live engagement turn) and file extensions that are NOT delegated
++# TLDs. Deliberately EXCLUDED despite looking like files: py (Paraguay),
++# sh (St. Helena), md (Moldova), app, dev, zip, mov, io — real TLDs; a
++# bare "host.py" connection target must stay gated (deny-by-default
++# wins ties with filename false positives).
+ _CODE_ATTR_SUFFIXES = frozenset({
+     "run", "path", "argv", "environ", "getenv", "sleep", "compile",
+     "search", "findall", "match", "sub", "loads", "dumps", "load",
+@@ -597,18 +604,56 @@ _CODE_ATTR_SUFFIXES = frozenset({
+     "b64decode", "b64encode", "unhexlify", "hexlify", "startswith",
+     "endswith", "replace", "lower", "upper", "keys", "values",
+     "items", "get", "pop", "update", "copy", "name", "mode",
++    # PILOT-02: exception/message attrs + never-delegated extensions
++    "timeout", "refused", "reset", "unreachable", "gaierror",
++    "txt", "log", "json", "yaml", "yml", "conf", "cfg", "ini",
++    "csv", "html", "xml", "pcap", "pcapng", "nmap", "gnmap", "nse",
++    "sql", "sqlite", "db", "pyc", "pyo", "gz", "bz2", "xz", "tar",
++    "png", "jpg", "jpeg", "gif", "svg", "pdf", "doc", "docx",
++    "xls", "xlsx", "ppt", "pptx", "pem", "crt", "csr", "key",
++    "out", "err", "pid", "lock", "bak", "swp", "dat", "raw",
++    "service", "sock", "pub", "asc", "hosts", "list", "rules",
+ })
+ 
+ 
++def _path_embedded(command: str, start: int) -> bool:
++    """True when the token at `start` rides inside a URL or file path
++    rather than starting a shell argument: the immediately preceding
++    character is a path separator ("curl http://10.0.0.5/22" path
++    suffix, "python3 ws/probe.py", "nmap -iL /tmp/hosts.txt"). URL
++    hosts are gated via _URL_RE; file paths are not connection
++    targets."""
++    return start > 0 and command[start - 1] == "/"
++
++
+ def extract_targets_from_command(command: str) -> List[str]:
+     """Extract IP addresses, CIDRs, domains and URL hosts from a command
+-    string (ported heuristics from 3.7.3 safe_execution)."""
++    string (ported heuristics from 3.7.3 safe_execution).
++
++    PILOT-02 hardening — the first live engagement surfaced two
++    false-positive classes, both fixed WITHOUT loosening the strict
++    side:
++      * IP/nnn tokens not in argument position are URL/path suffixes,
++        not CIDRs ("curl http://10.10.0.5/22"): the bare IP and the
++        URL host are extracted separately and carry the gate;
++      * an IP/nnn suffix over 32 can never be a prefix length — host/
++        port or path notation ("10.10.0.5/80"): the bare IP carries
++        the gate;
++      * argument-position CIDRs stay STRICT, including sloppy
++        host-bits-set notation ("nmap 10.10.0.5/22" is network-scan
++        intent under nmap semantics) — deny-by-default is correct
++        there;
++      * domain-shaped tokens in path position are file references
++        ("python3 ws/probe.py"), never bare connection targets.
++    """
+     targets: set = set()
+     for m in _IP_RE.finditer(command):
+         targets.add(m.group())
+     for m in _URL_RE.finditer(command):
+         targets.add(m.group(1))
+     for m in _DOMAIN_RE.finditer(command):
++        if _path_embedded(command, m.start(1)):
++            continue
+         domain = m.group(1)
+         if domain in _DOMAIN_FALSE_POSITIVES:
+             continue
+@@ -618,7 +663,18 @@ def extract_targets_from_command(command: str) -> List[str]:
+             continue
+         targets.add(domain)
+     for m in _CIDR_RE.finditer(command):
+-        targets.add(m.group())
++        if _path_embedded(command, m.start()):
++            continue
++        token = m.group()
++        try:
++            prefix = int(token.rsplit("/", 1)[1])
++        except ValueError:
++            prefix = 0
++        if prefix > 32:
++            # never a prefix length: host/port or path notation; the
++            # bare IP token (extracted above) carries the gate
++            continue
++        targets.add(token)
+     return [t.rstrip(".") for t in targets if t.rstrip(".")]
+ 
+ 
+diff --git a/tests/test_doctor.py b/tests/test_doctor.py
+new file mode 100644
+index 0000000..a872703
+--- /dev/null
++++ b/tests/test_doctor.py
+@@ -0,0 +1,94 @@
++"""tests/test_doctor.py — the runtime exec-probe.
++
++PILOT-02: nmap was present but not executable (file caps outside the
++container bounding set) and passed the presence-only pre-flight. The
++probe is the unit-testable seam: _probe_exec against fabricated
++binaries mimicking the failure shapes observed in the engagement
++container (rc=127 from the sh wrapper, direct EPERM) and a healthy
++one, plus one run_doctor integration pass.
++"""
++from __future__ import annotations
++
++import textwrap
++from pathlib import Path
++
++from hypervisor.doctor import _probe_exec
++
++
++def _make_bin(tmp_path: Path, name: str, body: str,
++              mode: int = 0o755) -> Path:
++    p = tmp_path / name
++    p.write_text(textwrap.dedent(body))
++    p.chmod(mode)
++    return p
++
++
++def test_probe_exec_ok(tmp_path):
++    p = _make_bin(tmp_path, "fake-nmap", """\
++        #!/bin/sh
++        echo "Fake Nmap 7.94"
++        """)
++    ok, detail, fix = _probe_exec(str(p), "--version")
++    assert ok and "exec ok" in detail and fix == ""
++
++
++def test_probe_exec_wrapper_rc127_shape(tmp_path):
++    # the engagement container's exact shape: the sh wrapper's exec of
++    # the file-capped binary fails and sh reports it, rc 127
++    p = _make_bin(tmp_path, "fake-nmap", """\
++        #!/bin/sh
++        echo "/usr/bin/nmap: 6: exec: /usr/lib/nmap/nmap: Operation not permitted" >&2
++        exit 127
++        """)
++    ok, detail, fix = _probe_exec(str(p), "--version")
++    assert not ok
++    assert "NOT EXECUTABLE" in detail
++    assert "NET_BIND_SERVICE" in fix
++
++
++def test_probe_exec_rc126_shape(tmp_path):
++    p = _make_bin(tmp_path, "fake-tool", """\
++        #!/bin/sh
++        echo "permission denied" >&2
++        exit 126
++        """)
++    ok, detail, fix = _probe_exec(str(p), None)
++    assert not ok and "NOT EXECUTABLE" in detail
++
++
++def test_probe_exec_direct_eperm(tmp_path):
++    # binary without the exec bit: execve itself raises
++    p = _make_bin(tmp_path, "fake-tool", "#!/bin/sh\n", mode=0o644)
++    ok, detail, fix = _probe_exec(str(p), None)
++    assert not ok and "EPERM" in detail
++
++
++def test_probe_exec_nonzero_rc_is_ok(tmp_path):
++    # ssh -V style: version flags may exit nonzero on some builds —
++    # a completed invocation proves an executable binary
++    p = _make_bin(tmp_path, "fake-ssh", """\
++        #!/bin/sh
++        echo "OpenSSH_9.6" >&2
++        exit 1
++        """)
++    ok, detail, fix = _probe_exec(str(p), "-V")
++    assert ok and fix == ""
++
++
++def test_runtime_check_surface(tmp_path, monkeypatch):
++    # integration: run_doctor's runtime loop must surface the
++    # present-but-dead binary through the named check
++    _make_bin(tmp_path, "nmap", """\
++        #!/bin/sh
++        echo "exec: Operation not permitted" >&2
++        exit 127
++        """)
++    monkeypatch.setenv(
++        "PATH", str(tmp_path) + ":" + __import__("os").environ.get(
++            "PATH", ""))
++    from hypervisor import doctor
++    doctor.CHECKS.clear()
++    doctor.run_doctor()
++    ent = [c for c in doctor.CHECKS if c["name"] == "runtime: nmap"]
++    assert ent and not ent[0]["ok"]
++    assert "NOT EXECUTABLE" in ent[0]["detail"]
+diff --git a/tests/test_permissions.py b/tests/test_permissions.py
+index 773114e..b38933f 100644
+--- a/tests/test_permissions.py
++++ b/tests/test_permissions.py
+@@ -339,3 +339,82 @@ def test_decision_helpers():
+     assert d.allowed and d.audit == "recon"
+     d = Decision.deny("r", reason="why")
+     assert not d.allowed and d.reason == "why"
++
++
++# ─── 9. command-target extraction: the PILOT-02 false-positive classes ──
++
++
++def test_url_path_suffix_is_not_a_cidr():
++    # pilot-02 turn 10: "curl ... http://10.10.0.5/22" was denied
++    # because the URL path was read as a CIDR token
++    got = extract_targets_from_command("curl -m 8 http://10.10.0.5/22")
++    assert "10.10.0.5/22" not in got
++    assert "10.10.0.5" in got          # the host still gates
++
++
++def test_argument_position_cidr_stays_strict():
++    # nmap semantics: network-scan intent keeps deny-by-default —
++    # canonical AND sloppy host-bits-set notation alike
++    assert "10.0.0.0/22" in extract_targets_from_command(
++        "nmap -sV 10.0.0.0/22")
++    assert "10.0.0.5/22" in extract_targets_from_command(
++        "nmap -sV 10.0.0.5/22")
++
++
++def test_prefix_over_32_is_never_a_cidr():
++    got = extract_targets_from_command("curl 10.10.0.5/80")
++    assert "10.10.0.5/80" not in got
++    assert "10.10.0.5" in got          # host/port or path notation
++
++
++def test_path_component_domains_are_not_targets():
++    assert "probe.py" not in extract_targets_from_command(
++        "python3 /app/workspace/pilot-02/probe.py")
++    assert "hosts.txt" not in extract_targets_from_command(
++        "nmap -iL /tmp/hosts.txt")
++
++
++def test_output_and_exception_tokens_are_not_domains():
++    # pilot-02 turn 3: "socket.timeout" denied the fallback probe
++    got = extract_targets_from_command("echo 'socket.timeout' | tee probe.log")
++    assert "socket.timeout" not in got
++    assert "probe.log" not in got
++
++
++def test_bare_cctld_shaped_hosts_stay_gated():
++    # .py (Paraguay), .sh (St. Helena), .md (Moldova) are real TLDs:
++    # bare connection targets keep deny-by-default — filename-shaped
++    # false positives lose the tie, on purpose
++    assert "probe.py" in extract_targets_from_command("python3 probe.py")
++    assert "evil.sh" in extract_targets_from_command("nc -zv evil.sh 22")
++
++
++def test_gate_allows_url_path_suffix_on_in_scope_host(sm):
++    # the exact pilot-02 shape: authorized host, /NN URL path
++    eng = PermissionEngine(sm)
++
++    async def go():
++        return await eng.check_permission(
++            NetTool(), {"command": "curl -m 8 http://10.0.0.5/22"})
++    d = asyncio.run(go())
++    assert d.allowed and d.rule == "scope:action-in-scope"
++
++
++def test_gate_still_denies_argument_position_cidr(sm):
++    eng = PermissionEngine(sm)
++
++    async def go():
++        return await eng.check_permission(
++            NetTool(), {"command": "nmap -sV 10.0.0.0/22"})
++    d = asyncio.run(go())
++    assert not d.allowed and d.rule == "scope:out-of-scope"
++
++
++def test_gate_still_denies_sloppy_host_bits_cidr(sm):
++    eng = PermissionEngine(sm)
++
++    async def go():
++        return await eng.check_permission(
++            NetTool(), {"command": "nmap -sV 10.0.0.5/22"})
++    d = asyncio.run(go())
++    assert not d.allowed and d.rule == "scope:out-of-scope"
+-- 
+2.47.3
+

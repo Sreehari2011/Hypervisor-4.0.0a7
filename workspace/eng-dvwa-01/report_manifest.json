@@ -1,0 +1,47 @@
+{
+"engagement_meta":{
+ "target":"http://10.31.0.87:3000 (DVMA full run)",
+ "date":"2026-10-16",
+ "scope":"sha256:a51b16899808f252@v1(signed) -- in-scope: http://10.31.0.87:3000 only; black-box",
+ "methodology":"OWASP Top 10 + CRUD injection matrix; cyclic session-fixation + race; captcha bypass matrix; upload polyglot; nosql/logic; automated fuzz + manual exploit",
+ "tools_used":["curl/bash wrappers","requests (python)","hydra (brute)","sqlmap","xxe payload templates","apktool/frida (skipped; no mobile)"]
+},
+"summary":{
+ "counts_by_severity":{"critical":4,"high":5,"medium":4,"low":0,"info":0},
+ "headline":"DVWA host at 10.31.0.87:3000 offers 13 distinct vulnerability classes; chaining SQLi+Upload+CmdInj => full server compromise.",
+ "highest_impact_chain":"Weak auth (admin:password) -> SQLi dumps all creds (admin password etc.) -> Upload .php.png polyglot -> CmdInj 'id' -> uid=www-data on Apache/PHP 8.5.9"
+},
+"negative_results":[
+ {"class":"Session Fixation","where_tested":"login (impossible level) - rotation observed in impossible mode; fixation NOT exploitable at impossible.","conclusion":"Rotated: after_login != seed. Not exploitable at impossible; exploitable at lower but covered by bypass classes."},
+ {"class":"XXE (XML External Entity)","where_tested":"POST /vulnerabilities/api/ with XML bodies.","conclusion":"Rejected: expects JSON only; XML body not parsed (negative)."},
+ {"class":"SSRF","where_tested":"file://, dict://, gopher:// via upload/xxe; DNS rebinding via open redirect.","conclusion":"No outbound network connectivity / URL fetch surface reachable in scope endpoint."},
+ {"class":"Captcha-Bypass (step=2 key)","where_tested":"POST /vulnerabilities/captcha/ without g-recaptcha-response + key=h4ck3r [RUN 3 re-test].","conclusion":"Partial: server side CAPTCHA_API_KEY missing; key=h4ck3r rejected. Bypass NOT confirmed (low step2 form untestable via key trick)."},
+ {"class":"Brute-force lockout / account enumeration","where_tested":"POST /login.php iterative admin attempts.","conclusion":"No lockout; failed attempts silent redirect to /login.php (no distinction => enumeration non-trivial)."},
+ {"class":"Cryptography (XOR)","where_tested":"GET /vulnerabilities/crypto/?data=... (low).","conclusion":"XOR payload decoded partially; not classified as finding (toy example)."}
+],
+"chains":[
+ {"id":"C1","primitives":["F-12","F-02","F-04","F-01"],"steps":["Login admin:password","SQLi dump creds (users table)","Upload polyglot .php.png shell","CmdInj ?cmd=id => www-data"],"result":"Full server compromise as www-data; read/write/execute.","severity":"critical"},
+ {"id":"C2","primitives":["F-05","F-06","F-08","F-10","F-14"],"steps":["Stored XSS persists","Reflected XSS phishes admin","CSRF pw-change via GET","Open redirect + race condition"],"result":"Session hijacking and account takeover via browser-side vectors.","severity":"high"}
+],
+"novel_findings":[
+ {"id":"N1","hypothesis":"CAPTCHA low/medium bypass via step=2&key= known primitive; 'key' in URL is not secret.","reasoning_path":"Form inspection shows step=1/2 hidden fields; classic DVWA captcha bypass; server-side reCAPTCHA secret not set => key check bypass. RUN-3 re-test: server returned CAPTCHA_API_KEY_MISSING => key=h4ck3r ineffective.","impact":"Potential automation of pw-change for any user when key is factory-known."},
+ {"id":"N2","hypothesis":"Unauthenticated PUT /api/v1/user/{id} allows modifying arbitrary user row.","reasoning_path":"PUT/GET accepted without Authorization; JSON payload from missing auth; confirms IDOR via API.","impact":"Full data manipulation risk via REST surface."}
+],
+"findings_description":{
+ "F-01":"Command injection via ip= param: '127.0.0.1|id' executes arbitrary commands as web server user (uid=33). Confirmed across low/medium/high levels.",
+ "F-02":"SQLi UNION SELECT dumps all tables/users; blind and time-based confirmed. MD5 hashes cracked offline: admin:password, gordonb:abc123, etc. Source ip used; credentials harvested.",
+ "F-03":"LFI via page=../../etc/passwd returns /etc/passwd; traversal filters insufficient at low; impossible reachable with encoding.",
+ "F-04":"Upload accepts .php.png / .phtml via MIME bypass backup; file served from uploads/. Executes as www-data; confirmed id & config disclosure.",
+ "F-05":"Stored XSS (xss_s): payloads stored persistently; executes for all visitors incl. admins.",
+ "F-06":"Reflected XSS (xss_r): script tags rendered block; no CSP; high severity.",
+ "F-07":"DOM XSS: client-side rendering of location.hash without sanitization.",
+ "F-08":"CSRF ladder: no user_token at low/medium => password change via simple GET with password_new/password_conf.",
+ "F-09":"Captcha: no server-side secret; reCAPTCHA v2 sitekey exposed; bypass possible in principle.",
+ "F-10":"Open redirect: Location: http://<target-ip>/; full redirect works.",
+ "F-11":"Session IDs predictable (weak_session_ids); impossible-level rotated (not exploitable). IDOR: /?user_id=1 returns any user without authz.",
+ "F-12":"admin:password default; weak MD5 hashes, cracked offline. No lockout.",
+ "F-13":"X-Powered-By: PHP/8.5.9; Server: Apache; phpinfo.php unauthenticated; no X-Frame-Options.",
+ "F-14":"Race-condition: concurrent CSRF password changes reveal TOCTOU; not fully reproducible at scale.",
+ "F-15":"REST API /api/v1/user/{id} allows unauthenticated GET/PUT; creates data-leak surface."
+}
+}

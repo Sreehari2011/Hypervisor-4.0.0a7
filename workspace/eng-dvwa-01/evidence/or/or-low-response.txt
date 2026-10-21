@@ -1,0 +1,8 @@
+HTTP/1.1 302 Found
+Date: Fri, 16 Oct 2026 09:55:42 GMT
+Server: Apache/2.4.68 (Debian)
+X-Powered-By: PHP/8.5.9
+location: http://10.31.0.87/
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+

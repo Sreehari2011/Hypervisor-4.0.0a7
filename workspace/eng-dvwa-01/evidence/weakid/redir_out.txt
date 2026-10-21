@@ -1,0 +1,24 @@
+== weak_id low
+== weak_id medium
+== weak_id high
+== weak_id impossible
+== redirect low
+  R=http://10.31.0.87/ => 302 loc=http://10.31.0.87/
+  R=//10.31.0.87/ => 302 loc=http://10.31.0.87/
+  R=///10.31.0.87/x => 302 loc=http://10.31.0.87/x
+  R=https:10.31.0.87 => 302 loc=https:10.31.0.87
+== redirect medium
+  R=http://10.31.0.87/ => 500 loc=
+  R=//10.31.0.87/ => 302 loc=http://10.31.0.87/
+  R=///10.31.0.87/x => 302 loc=http://10.31.0.87/x
+  R=https:10.31.0.87 => 302 loc=https:10.31.0.87
+== redirect high
+  R=http://10.31.0.87/ => 500 loc=
+  R=//10.31.0.87/ => 500 loc=
+  R=///10.31.0.87/x => 500 loc=
+  R=https:10.31.0.87 => 500 loc=
+== redirect impossible
+  R=http://10.31.0.87/ => 200 loc=
+  R=//10.31.0.87/ => 200 loc=
+  R=///10.31.0.87/x => 200 loc=
+  R=https:10.31.0.87 => 200 loc=

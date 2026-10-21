@@ -1,0 +1,6 @@
+== csrf level=low (no user_token)
+Password Changed
+CSRF token is incorrect
+== csrf level=medium (no user_token)
+== csrf level=high (no user_token)
+== csrf level=impossible (no user_token)

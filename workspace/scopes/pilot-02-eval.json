@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "engagement_id": "PILOT-02-INNSPARK-EVAL",
+  "mode": "expand",
+  "expansion_cap": 256,
+  "targets": [
+    {
+      "target": "innspark.in",
+      "type": "domain",
+      "ports": [],
+      "protocols": ["tcp", "http", "https"],
+      "authorized": true,
+      "authorization_token": "PILOT-02-EVAL/2026-10-13/SELF-OWNED-ISOLATED-TEST-SERVER",
+      "expires_at": null
+    },
+    {
+      "target": "*.innspark.in",
+      "type": "wildcard",
+      "ports": [],
+      "protocols": ["tcp", "http", "https"],
+      "authorized": true,
+      "authorization_token": "PILOT-02-EVAL/2026-10-13/SELF-OWNED",
+      "expires_at": null
+    }
+  ],
+  "excludes": [],
+  "roe": {
+    "poc_only": false,
+    "allow_persistent_payloads": true,
+    "destructive_allowed": false
+  }
+}
